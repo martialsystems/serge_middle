@@ -3,6 +3,7 @@
 #include "SergeMiddle.h"
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
+#include "PleatView.h"
 
 #include <algorithm>
 
@@ -20,12 +21,27 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false);
-    pGraphics->AttachPanelBackground(COLOR_GRAY);
+    pGraphics->AttachPanelBackground(IColor(255, 46, 44, 42));
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
-    const IRECT bounds = pGraphics->GetBounds().GetPadded(-10.f);
-    pGraphics->AttachControl(new ITextControl(bounds.GetFromTop(30.f), "Serge Middle", IText(24)));
-    pGraphics->AttachControl(new IVKnobControl(bounds.GetCentredInside(140.f), kFold));
+    pGraphics->AttachTextEntryControl();
+
+    const IRECT bounds = pGraphics->GetBounds();
+    const IBitmap plate = pGraphics->LoadBitmap("pleat_plate.png");
+    const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
+
+    // Plate, then the rope, then the cap. The cap is proud of the enamel, so it covers a rope that would hit it.
+    pGraphics->AttachControl(new ILambdaControl(
+        bounds,
+        [plate](ILambdaControl*, IGraphics& g, IRECT& r) { g.DrawFittedBitmap(plate, r); },
+        0, false, false, kNoParameter, true));
+    pGraphics->AttachControl(new pleat::PleatCables(bounds));
+    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds), kFold, knob));
+
+    const IRECT caption(bounds.L + 0.30f * bounds.W(), bounds.T + 0.575f * bounds.H(),
+                        bounds.L + 0.70f * bounds.W(), bounds.T + 0.650f * bounds.H());
+    const IText valueText(16.f, IColor(230, 236, 224, 206), "Roboto-Regular", EAlign::Center);
+    // GetDisplay of Fold. The same IParam::Value is the smoother target in ProcessBlock.
+    pGraphics->AttachControl(new ICaptionControl(caption, kFold, valueText, COLOR_TRANSPARENT, false));
   };
 #endif
 }

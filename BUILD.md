@@ -54,7 +54,19 @@ cmake --build build/SergeMiddle --target SergeMiddle-vst3
 codesign --force --sign - build/SergeMiddle/out/SergeMiddle.vst3
 ```
 
-The bundle is `build/SergeMiddle/out/SergeMiddle.vst3`. The last command is an ad-hoc signature so the Info.plist is bound. The DSP tests, with no iPlug2 and no SDK:
+The bundle is `build/SergeMiddle/out/SergeMiddle.vst3`. The last command is an ad-hoc signature so the Info.plist is bound.
+
+FL Studio on this Mac loads a universal bundle, because its bridge is x86_64. Same Unix Makefiles generator, VST3 only:
+
+```text
+cmake -S SergeMiddle -B build/fl-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG2_UNIVERSAL=ON -DIPLUG_DEPLOY_METHOD=SYMLINK
+cmake --build build/fl-release --target SergeMiddle-vst3
+codesign --force --sign - build/fl-release/out/SergeMiddle.vst3
+```
+
+`~/Library/Audio/Plug-Ins/VST3/SergeMiddle.vst3` is a symlink to that bundle. Quit FL Studio before a rebuild replaces it.
+
+The DSP tests, with no iPlug2 and no SDK:
 
 ```text
 cmake -S SergeMiddle/dsp/tests -B build/dsp-tests -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
@@ -64,7 +76,7 @@ ctest --test-dir build/dsp-tests --output-on-failure
 
 ## Choices
 
-Project name: `SergeMiddle`. Window: 300 by 300, one Fold knob. Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it.
+Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, one Fold knob. Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it. The plate and knob PNGs are prototype art for the host test.
 
 ## Checks
 

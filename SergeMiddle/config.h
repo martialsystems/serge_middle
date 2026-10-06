@@ -26,8 +26,9 @@
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 0
 #define PLUG_HAS_UI 1
-#define PLUG_WIDTH 300
-#define PLUG_HEIGHT 300
+// 416 by 624 is pleat_plate.png. pleat_plate@2x.png is 832 by 1248.
+#define PLUG_WIDTH 416
+#define PLUG_HEIGHT 624
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 #define PLUG_HOST_RESIZE 0

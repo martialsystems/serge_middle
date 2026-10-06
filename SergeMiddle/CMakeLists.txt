@@ -20,5 +20,9 @@ iplug_add_plugin(${PROJECT_NAME}
     resources/resource.h
   RESOURCES
     resources/fonts/Roboto-Regular.ttf
+    resources/pleat_plate.png
+    resources/pleat_plate@2x.png
+    resources/pleat_knob.png
+    resources/pleat_knob@2x.png
   FORMATS VST3
 )
