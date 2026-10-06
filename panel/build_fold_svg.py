@@ -18,27 +18,28 @@ o = []
 A = o.append
 
 def stamp(text, x, y, size, anchor="middle", weight="700", spacing=1.2, ident=None):
-    """Stamped legend: a faint offset ghost under the ink, and a small tilt per legend."""
-    rot = rnd.uniform(-1.4, 1.4); dx = rnd.uniform(-0.6, 0.6); dy = rnd.uniform(-0.5, 0.5)
+    """Screen-printed legend: a faint offset ghost under the ink, and a small tilt per legend."""
+    rot = rnd.uniform(-0.7, 0.7); dx = rnd.uniform(-0.6, 0.6); dy = rnd.uniform(-0.5, 0.5)
     gx, gy = rnd.choice((-0.7, 0.7)), rnd.choice((-0.5, 0.6))
     attr = (f'font-size="{size}" font-weight="{weight}" letter-spacing="{spacing}" text-anchor="{anchor}"')
     tag = f' id="{ident}"' if ident else ""
     A(f'<g{tag} transform="translate({x+dx:.2f} {y+dy:.2f}) rotate({rot:.2f})">'
-      f'<text {attr} x="{gx}" y="{gy}" fill="{INK}" opacity=".22">{text}</text>'
+      f'<text {attr} x="{gx}" y="{gy}" fill="{INK}" opacity=".1">{text}</text>'
       f'<text {attr} fill="{INK}" opacity="{rnd.uniform(.84,.95):.2f}">{text}</text></g>')
 
 A(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W*2}" height="{H*2}" '
-  f'font-family="\'Courier Prime\',\'Courier New\',Courier,monospace">')
+  f'font-family="Futura,\'Futura PT\',\'Century Gothic\',\'Avenir Next\',\'Helvetica Neue\',Arial,sans-serif">')
 A('''<defs>
 <linearGradient id="alu" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8d9094"/><stop offset=".25" stop-color="#d6d8da"/><stop offset=".6" stop-color="#b3b6b9"/><stop offset="1" stop-color="#7c7f83"/></linearGradient>
 <radialGradient id="aluHole" cx=".38" cy=".32" r=".8"><stop offset="0" stop-color="#eceded"/><stop offset=".6" stop-color="#b4b7ba"/><stop offset="1" stop-color="#6f7276"/></radialGradient>
-<linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#efe9d8"/><stop offset=".55" stop-color="#e8e1cd"/><stop offset="1" stop-color="#ddd4bc"/></linearGradient>
-<filter id="tooth" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.15" numOctaves="3" seed="7"/><feColorMatrix values="0 0 0 0 .32  0 0 0 0 .27  0 0 0 0 .18  0 0 0 -1.1 .62"/></filter>
+<linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f3ee"/><stop offset=".5" stop-color="#e9e8e2"/><stop offset="1" stop-color="#d6d5cf"/></linearGradient>
+<radialGradient id="plug" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#fbfaf6"/><stop offset=".7" stop-color="#e2e1da"/><stop offset="1" stop-color="#b9b8b1"/></radialGradient>
+<filter id="tooth" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".22" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -1.6 .9"/><feGaussianBlur stdDeviation=".5"/></filter>
 <filter id="fibre" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".035 .5" numOctaves="2" seed="19"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 .98  0 0 0 0 .9  0 0 0 -.9 .5"/></filter>
-<filter id="ink" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale=".9"/><feGaussianBlur stdDeviation=".14"/></filter>
+<filter id="ink" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale=".35"/><feGaussianBlur stdDeviation=".08"/></filter>
 <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4"/></filter>
 <filter id="soft1" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>
-<linearGradient id="streak" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="120" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity=".05"/><stop offset=".5" stop-color="#fff" stop-opacity=".3"/><stop offset=".58" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="streak" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="120" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity=".05"/><stop offset=".46" stop-color="#fff" stop-opacity=".5"/><stop offset=".54" stop-color="#fff" stop-opacity=".55"/><stop offset=".62" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
 <linearGradient id="mylarTint" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".07"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#20242a" stop-opacity=".07"/></linearGradient>
 <radialGradient id="nut_ac" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#5a5a5e"/><stop offset=".55" stop-color="#232326"/><stop offset="1" stop-color="#0b0b0c"/></radialGradient>
 <radialGradient id="nut_dc" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#6aa2ee"/><stop offset=".55" stop-color="#1f56b4"/><stop offset="1" stop-color="#0d2c66"/></radialGradient>
@@ -58,76 +59,70 @@ for i in range(60):
     A(f'<line x1="0" x2="{W}" y1="{y:.1f}" y2="{y:.1f}" stroke="#fff" stroke-opacity="{rnd.uniform(.05,.2):.2f}" stroke-width=".3"/>')
 A('</g>')
 
-# 2. Paper sheet, folded over the top and bottom edges, short of the side edges.
-A('<g id="paper" clip-path="url(#sheet)">')
+# 2. Baked enamel coat over the plate. It stops short of the two side edges, where the metal shows.
+A('<g id="enamel" clip-path="url(#sheet)">')
 A('<rect x="4" y="0" width="192" height="700" fill="url(#paper)"/>')
-A('<rect x="4" y="0" width="192" height="700" filter="url(#fibre)" opacity=".5"/>')
-A('<rect x="4" y="0" width="192" height="700" filter="url(#tooth)" opacity=".55"/>')
-A('<rect x="4" y="0" width="192" height="5" fill="#000" opacity=".1"/><rect x="4" y="695" width="192" height="5" fill="#000" opacity=".16"/>')
-A('<rect x="4" y="0" width="1.2" height="700" fill="#000" opacity=".25"/><rect x="194.8" y="0" width="1.2" height="700" fill="#000" opacity=".3"/>')
-# Unused grid holes stay under the paper: a shallow dimple where the sheet spans the hole.
-used = {KNOB} | {(x, y) for _, x, y, _, _ in JACKS}
-for cx in COLS:
-    for cy in ROWS:
-        if (cx, cy) in used:
-            continue
-        A(f'<g class="covered-hole"><circle cx="{cx}" cy="{cy}" r="15.5" fill="#000" opacity=".045"/>'
-          f'<path d="M{cx-15.5},{cy} A15.5,15.5 0 0 1 {cx+15.5},{cy}" fill="none" stroke="#000" stroke-opacity=".2" stroke-width=".9"/>'
-          f'<path d="M{cx-15.5},{cy} A15.5,15.5 0 0 0 {cx+15.5},{cy}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".9"/></g>')
+A('<rect x="4" y="0" width="192" height="700" filter="url(#tooth)" opacity=".5"/>')   # orange peel
+A('<rect x="4" y="0" width="192" height="2.2" fill="#fff" opacity=".7"/><rect x="4" y="696.5" width="192" height="3.5" fill="#000" opacity=".22"/>')
+A('<rect x="4" y="0" width="1.6" height="700" fill="#fff" opacity=".75"/><rect x="194" y="0" width="2" height="700" fill="#000" opacity=".28"/>')
 A('</g>')
+used = {KNOB} | {(x, y) for _, x, y, _, _ in JACKS}
+PLUGS = [(cx, cy) for cx in COLS for cy in ROWS if (cx, cy) not in used]
 
-# 3. Printed graphics, on the paper and under the mylar.
+# 3. Screen print: black, with one red line.
 A('<g id="print" filter="url(#ink)">')
-A(f'<rect x="14" y="20" width="172" height="44" fill="{INK}" opacity=".9"/>')
-A('<g transform="translate(100.4 54.6) rotate(-.6)"><text font-size="38" font-weight="700" letter-spacing="7" text-anchor="middle" fill="#e9e2cf">FOLD</text></g>')
-A(f'<line x1="14" y1="70" x2="186" y2="70.6" stroke="{INK}" stroke-width="1.2" opacity=".85"/>')
-# One line folded six times, wider at each fold: the six cells in series.
-pts, y = [(150, 88)], 88
-for k in range(6):
-    half = 9 + k * 4.2
-    y += 17; pts.append((150 + half, y))
-    y += 17; pts.append((150 - half, y))
-y += 14; pts.append((150, y))
-d = "M" + " L".join(f"{x:.1f},{yy:.1f}" for x, yy in pts)
-A(f'<path d="{d}" fill="none" stroke="#b5432c" stroke-width="3.4" stroke-linejoin="miter" opacity=".9"/>')
-A(f'<path d="{d}" transform="translate(.9 .7)" fill="none" stroke="{INK}" stroke-width=".8" opacity=".75"/>')
-A(f'<path d="M150,{y} V354" stroke="{INK}" stroke-width="1" stroke-dasharray="1.5 3" fill="none" opacity=".8"/>')
-# Knob scale: five ticks on the plate, the long arc between them.
+A(f'<rect x="14" y="22" width="172" height="40" fill="{INK}"/>')
+A('<text x="101.5" y="54" font-size="32" font-weight="700" letter-spacing="9" text-anchor="middle" fill="#efeee8">FOLD</text>')
+# Knob scale ring.
 kx, ky = KNOB
 def pol(r, deg):
     a = math.radians(deg - 90)
     return kx + r * math.cos(a), ky + r * math.sin(a)
 x0, y0 = pol(33, -135); x1, y1 = pol(33, 135)
-A(f'<path d="M{x0:.2f},{y0:.2f} A33,33 0 1 1 {x1:.2f},{y1:.2f}" fill="none" stroke="{INK}" stroke-width=".9" opacity=".85"/>')
+A(f'<path d="M{x0:.2f},{y0:.2f} A33,33 0 1 1 {x1:.2f},{y1:.2f}" fill="none" stroke="{INK}" stroke-width="1.1"/>')
 for i in range(17):
     deg = -135 + i * 270 / 16
     major = i % 4 == 0
     a, b = pol(33, deg), pol(38.5 if major else 35.5, deg)
-    A(f'<line x1="{a[0]:.2f}" y1="{a[1]:.2f}" x2="{b[0]:.2f}" y2="{b[1]:.2f}" stroke="{INK}" stroke-width="{1.5 if major else .7}"/>')
-# Signal brackets: the two inputs meet at a sum mark ahead of the cells, and OUT gets an arrow.
-A(f'<path d="M72,400 H128" stroke="{INK}" stroke-width="1" fill="none" opacity=".8"/>')
-A(f'<circle cx="100" cy="400" r="5.5" fill="#e8e1cd" stroke="{INK}" stroke-width="1"/><path d="M96.6,400 H103.4 M100,396.6 V403.4" stroke="{INK}" stroke-width="1"/>')
-A(f'<path d="M100,394.5 V354 H150" stroke="{INK}" stroke-width="1" stroke-dasharray="1.5 3" fill="none" opacity=".8"/>')
-A(f'<path d="M72,500 H96 M72,496 V504" stroke="{INK}" stroke-width="1" fill="none" opacity=".8"/>')
-A(f'<path d="M104,500 H126 M120,495.5 L127,500 L120,504.5" stroke="{INK}" stroke-width="1.2" fill="none"/>')
-A(f'<rect x="14" y="560" width="172" height="1.1" fill="{INK}" opacity=".8"/>')
+    A(f'<line x1="{a[0]:.2f}" y1="{a[1]:.2f}" x2="{b[0]:.2f}" y2="{b[1]:.2f}" stroke="{INK}" stroke-width="{1.6 if major else .8}"/>')
+# One line folded six times, taller at each fold: the six cells in series.
+pts, x = [(20, 344)], 20
+for k in range(6):
+    amp = 4 + k * 2.4
+    x += 12.5; pts.append((x, 344 - amp))
+    x += 12.5; pts.append((x, 344 + amp))
+pts.append((x + 10, 344))
+d = "M" + " L".join(f"{px:.1f},{py:.1f}" for px, py in pts)
+A(f'<path d="{d}" fill="none" stroke="#c23a26" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>')
+# Inputs: open rings joined at a sum mark. CV: open ring with a tail. Output: solid block.
+for jx, jy in ((50, 400), (150, 400), (50, 500)):
+    A(f'<circle cx="{jx}" cy="{jy}" r="22.5" fill="none" stroke="{INK}" stroke-width="1.3"/>')
+A(f'<path d="M72.5,400 H127.5" stroke="{INK}" stroke-width="1.3" fill="none"/>')
+A(f'<circle cx="100" cy="400" r="6" fill="#ecebe5" stroke="{INK}" stroke-width="1.3"/><path d="M96.2,400 H103.8 M100,396.2 V403.8" stroke="{INK}" stroke-width="1.3"/>')
+A(f'<path d="M100,406 V452 H150 V464" stroke="{INK}" stroke-width="1.3" fill="none"/>')
+A(f'<path d="M72.5,500 H112 M105,494.5 L113,500 L105,505.5" stroke="{INK}" stroke-width="1.3" fill="none"/>')
+A(f'<rect x="116" y="464" width="68" height="68" rx="9" fill="{INK}"/>')
 A(f'<circle cx="24" cy="651" r="4" fill="{INK}"/><circle cx="112" cy="651" r="4" fill="#1f56b4"/>')
+A(f'<rect x="14" y="636" width="172" height="1.2" fill="{INK}"/>')
 A('</g>')
 
 # 4. Aluminium at the drilled holes: the paper and mylar are cut back around each part.
 A('<g id="holes">')
 for cx, cy in [KNOB] + [(x, y) for _, x, y, _, _ in JACKS]:
-    r = 12.5 if (cx, cy) == KNOB else 17
+    r = 12.5 if (cx, cy) == KNOB else 15.6
     A(f'<circle cx="{cx}" cy="{cy+.8}" r="{r+.9}" fill="#000" opacity=".28"/><circle cx="{cx}" cy="{cy}" r="{r}" fill="url(#aluHole)"/>'
       f'<circle cx="{cx}" cy="{cy}" r="{r-.4}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".5"/>')
+for cx, cy in PLUGS:   # unused grid holes: flush enamel button plugs
+    A(f'<circle cx="{cx+.8}" cy="{cy+1.6}" r="13.4" fill="#000" opacity=".3" filter="url(#soft1)"/><circle cx="{cx}" cy="{cy}" r="12.6" fill="url(#plug)" stroke="#8d8c86" stroke-width=".5"/>'
+      f'<path d="M{cx-9},{cy-5} A10.5,10.5 0 0 1 {cx+4},{cy-9.6}" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="1.2" stroke-linecap="round"/>')
 for sx, sy in ((100, 11), (100, 689)):
     A(f'<circle cx="{sx}" cy="{sy+.7}" r="5.6" fill="#000" opacity=".3"/><circle cx="{sx}" cy="{sy}" r="5" fill="url(#screw)"/>'
       f'<line x1="{sx-3.2}" y1="{sy+1.6}" x2="{sx+3.2}" y2="{sy-1.6}" stroke="#2b2c2e" stroke-width="1.1"/>')
 A('</g>')
 
-# 5. Mylar film: a faint tint and one soft specular streak. Move #mylar-streak with the panel light.
-A('<g id="mylar" clip-path="url(#sheet)" style="mix-blend-mode:screen"><rect x="4" y="0" width="192" height="700" fill="url(#mylarTint)"/>'
-  '<g id="mylar-streak" transform="translate(18 0) rotate(24 100 350)"><rect x="0" y="-200" width="120" height="1100" fill="url(#streak)"/>'
+# 5. Gloss on the enamel: a faint tint and one specular streak. Move #gloss-streak with the panel light.
+A('<g id="gloss" clip-path="url(#sheet)" style="mix-blend-mode:screen"><rect x="4" y="0" width="192" height="700" fill="url(#mylarTint)"/>'
+  '<g id="gloss-streak" transform="translate(18 0) rotate(24 100 350)"><rect x="0" y="-200" width="120" height="1100" fill="url(#streak)"/>'
   '<rect x="150" y="-200" width="46" height="1100" fill="url(#streak)" opacity=".35"/></g></g>')
 
 # 6. Banana jacks: colored nut, plated sleeve, dark bore. Black is AC, blue is DC.
@@ -160,7 +155,7 @@ A(f'<rect x="{kx-1.5}" y="{ky-26.2}" width="3" height="23.5" rx="1.2" fill="#f4f
 A(f'<ellipse cx="{kx-5}" cy="{ky-7}" rx="9" ry="5.5" fill="url(#capShine)" transform="rotate(-35 {kx-5} {ky-7})"/></g>')
 
 # 8. One rope cable, IN to OUT, hanging below both jacks.
-rope = "M50,400 C54,452 86,468 91,536 C95,604 152,618 150,500"
+rope = "M50,400 C56,450 88,470 92,540 C96,606 152,612 150,500"
 A('<g id="cable" data-from="in" data-to="out">')
 A(f'<path d="{rope}" transform="translate(3 6)" fill="none" stroke="#000" stroke-opacity=".3" stroke-width="7" stroke-linecap="round" filter="url(#soft)"/>')
 A(f'<path d="{rope}" fill="none" stroke="#6e100c" stroke-width="7" stroke-linecap="round"/>')
@@ -174,17 +169,20 @@ for px, py in ((50, 400), (150, 500)):
       f'<circle cx="{px}" cy="{py}" r="4.6" fill="#3a0806"/><circle cx="{px}" cy="{py}" r="3" fill="#0a0202"/>')
 A('</g>')
 
-# 9. Legends: stamped, over the cable.
+# 9. Legends: screen-printed, drawn over the cable.
 A('<g id="legends" filter="url(#ink)">')
 for text, deg in TICKS:
-    x, y = pol(45.5, deg)
-    stamp(text, x, y + 2.8, 8.6, spacing=0)
-stamp("FOLD", 50, 258, 12.5, spacing=2.4, ident="legend-knob")
+    x, y = pol(45, deg)
+    stamp(text, x, y + 2.8, 8, spacing=0)
+stamp("AMOUNT", 50, 259, 9.5, spacing=1.8, ident="legend-knob")
 for label, cx, cy, kind, ident in JACKS:
-    stamp(label, cx, cy - 23, 12.5, spacing=1.6, ident=f"legend-{ident}")
+    if ident == "out":
+        A(f'<text id="legend-out" x="150.6" y="548" font-size="11" font-weight="700" letter-spacing="2" text-anchor="middle" fill="{INK}">OUT</text>')
+    else:
+        stamp(label, cx, cy - 28, 11, spacing=1.6, ident=f"legend-{ident}")
 stamp("AC", 32, 654.5, 9, anchor="start", spacing=1)
 stamp("DC", 120, 654.5, 9, anchor="start", spacing=1)
-stamp("SIX CELLS IN SERIES", 100, 576, 7.4, spacing=1.1, weight="400")
+stamp("SIX CELLS IN SERIES", 100, 323, 6.6, spacing=1.4, weight="400")
 A('</g></svg>')
 
 out = Path(__file__).with_name("fold.svg")
