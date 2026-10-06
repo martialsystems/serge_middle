@@ -1,0 +1,9 @@
+{
+  "runtime_checks": [
+    {
+      "id": "transfer-acceptance",
+      "argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."],
+      "timeout_s": 120
+    }
+  ]
+}
