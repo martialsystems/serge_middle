@@ -3,8 +3,8 @@
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 Six identical cells. The acceptance curve is this map at g = 1 on
-vin in [-6, 6]. Oversampling, the halfband, the fixed output gain,
-and the DC block belong to the later iPlug2 module.
+vin in [-6, 6], before output gain, the fold-amount bound, and the
+DC block. Oversampling and the halfband belong to the later iPlug2 module.
 """
 
 from __future__ import annotations
@@ -30,13 +30,76 @@ VIN_MIN = -6.0
 VIN_MAX = 6.0
 N_SAMPLES = 6001
 
-# Audio sample a = ±1 maps to ±5 V into the cells at g = 1: v = g * 5 * a.
+# Audio sample a in [-1, 1]. d(g) = g, so v = 5 * d(g) * a.
+# At g = 1 that is ±5 V. OUTPUT_GAIN is the reciprocal of the raw peak there.
+# DRIVE_PEAKS is P(g) = max |process| on |v| <= 5 d(g). The bound is P(1) / P(g).
 AUDIO_FULL_SCALE_VOLTS = 5.0
-
-# |process(v)| on [-5, 5] at g = 1. The fixed gain is the reciprocal of that peak,
-# so a full-scale sine at g = 1 reaches ±1 before the DC block.
 FULL_SCALE_PEAK_VIN = 4.7072868603604885
 OUTPUT_GAIN = 4.3792716960440945
+
+# One-pole highpass after the bound. r = exp(-2 * pi * DC_BLOCK_HZ / fs).
+DC_BLOCK_HZ = 10.0
+
+# P(g) at the knots below. Linear interpolation in g stays within this
+# relative error on [G_MIN, G_MAX]: |P / P_hat - 1| <= DRIVE_PEAK_REL_ERROR.
+DRIVE_PEAK_REL_ERROR = 1e-3
+DRIVE_PEAKS = (
+    (0.5, 0.1775277872935283),
+    (0.5474003977393376, 0.1775277872935283),
+    (0.5497340568500901, 0.1801083216190401),
+    (0.5521767654519992, 0.1823810649417758),
+    (0.5547067136468338, 0.1843095472151966),
+    (0.5573675212310563, 0.18591382561662023),
+    (0.5601591882046668, 0.18717748565229037),
+    (0.5630599046694339, 0.18808406500314873),
+    (0.566091480523589, 0.18863517809647518),
+    (0.5692102959706695, 0.18881896732707976),
+    (0.7307789759456843, 0.18881896732707976),
+    (0.7332654411052391, 0.19231787361341546),
+    (0.7358191080258628, 0.19538316727663818),
+    (0.7384623772945786, 0.19801606632845936),
+    (0.7411952489113867, 0.20019412313069718),
+    (0.7440401234633096, 0.20191527290684846),
+    (0.7469970009503477, 0.20316031609079727),
+    (0.7500434807854778, 0.20391057268140328),
+    (0.7531795629687, 0.20416215561354206),
+    (0.9185864093019299, 0.20416215561354206),
+    (0.9213309248495607, 0.2096438416071082),
+    (0.9240983113600885, 0.21449114855650264),
+    (0.9268885688335132, 0.21865434960366537),
+    (0.9297016972698348, 0.22209582167109464),
+    (0.9325605676319503, 0.22480970979773496),
+    (0.9354651799198596, 0.22676595163237234),
+    (0.9384384050964597, 0.2279533761144198),
+    (0.9414573721988535, 0.22834847193959784),
+    (1.0, 0.22834847193959784),
+    (1.1099886913655106, 0.22834847193959784),
+    (1.1168787026741451, 0.2538347487518584),
+    (1.1306587252914142, 0.30541809576153445),
+    (1.144438747908683, 0.3577434904844825),
+    (1.1582187705259521, 0.41073672590994126),
+    (1.1788888044518555, 0.49134440207063745),
+    (1.1995588383777591, 0.573141728721227),
+    (1.2340088949209316, 0.7117458228533513),
+    (1.2753489627727383, 0.8812349685007477),
+    (1.3304690532418142, 1.1115937204565158),
+    (1.4062591776367936, 1.43480382544928),
+    (1.509609347266311, 1.8847703095863748),
+    (1.5853994716612905, 2.2199965883279056),
+    (1.6749696186735388, 2.6207186070952035),
+    (1.792099810920325, 3.1507658632937945),
+    (1.943680059710284, 3.8447414237834288),
+    (2.0, 4.104493885791202),
+    (2.1503803989693187, 4.80224901460087),
+    (2.4466508852406017, 6.191140686600411),
+    (2.894501620301843, 8.315964343499907),
+    (3.617952807708465, 11.78910827317095),
+    (4.0, 13.636725832047457),
+    (4.954615001583555, 18.279866505401003),
+    (8.0, 33.228577867627834),
+)
+
+_LOBE_SCAN_STEP = 0.005
 
 _ETA_VT = ETA * VT
 _LOG_K = math.log((IS * R) / _ETA_VT)
@@ -129,7 +192,7 @@ def process(x: float, g: float = G_DEFAULT, cells: int = N_CELLS) -> float:
     """y = C applied `cells` times to g*x. Default cells is 6, default g is 1.
 
     x is cell-input volts when g is 1. The acceptance curve is this map.
-    Plugin audio uses v = g * AUDIO_FULL_SCALE_VOLTS * a, then OUTPUT_GAIN.
+    Plugin audio uses audio_map: v = 5 * d(g) * a, then OUTPUT_GAIN * P(1) / P(g).
     """
     if cells < 0:
         raise ValueError(f"cells must be non-negative, got {cells}")
@@ -139,6 +202,163 @@ def process(x: float, g: float = G_DEFAULT, cells: int = N_CELLS) -> float:
     for _ in range(cells):
         y = cell(y)
     return y
+
+
+def drive_scale(g: float) -> float:
+    """d(g). Identity on [G_MIN, G_MAX], clamped outside that interval."""
+    if not math.isfinite(g):
+        raise ValueError(f"g must be finite, got {g}")
+    if g < G_MIN:
+        return G_MIN
+    if g > G_MAX:
+        return G_MAX
+    return g
+
+
+def drive_peak(g: float) -> float:
+    """P(g), linear in g between DRIVE_PEAKS. g is clamped with d(g)."""
+    g = drive_scale(g)
+    knots = DRIVE_PEAKS
+    if g <= knots[0][0]:
+        return knots[0][1]
+    last = len(knots) - 1
+    if g >= knots[last][0]:
+        return knots[last][1]
+    lo, hi = 0, last
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if knots[mid][0] <= g:
+            lo = mid
+        else:
+            hi = mid
+    g0, p0 = knots[lo]
+    g1, p1 = knots[hi]
+    t = (g - g0) / (g1 - g0)
+    return p0 + t * (p1 - p0)
+
+
+def output_scale(g: float) -> float:
+    """OUTPUT_GAIN * P(1) / P(g). At g = 1 this is OUTPUT_GAIN."""
+    return OUTPUT_GAIN * drive_peak(G_DEFAULT) / drive_peak(g)
+
+
+def audio_map(sample: float, g: float = G_DEFAULT) -> float:
+    """One sample before oversampling and before the DC block.
+
+    v = 5 * d(g) * sample, y = C^6(v), u = output_scale(g) * y.
+    """
+    if not math.isfinite(sample):
+        raise ValueError(f"sample must be finite, got {sample}")
+    volts = AUDIO_FULL_SCALE_VOLTS * drive_scale(g) * sample
+    return output_scale(g) * process(volts)
+
+
+def _golden_max_abs(lo: float, hi: float) -> tuple[float, float]:
+    invphi = (math.sqrt(5.0) - 1.0) / 2.0
+    a, b = lo, hi
+    c = b - invphi * (b - a)
+    d = a + invphi * (b - a)
+    fc = abs(process(c))
+    fd = abs(process(d))
+    for _ in range(80):
+        if fc > fd:
+            b, d, fd = d, c, fc
+            c = b - invphi * (b - a)
+            fc = abs(process(c))
+        else:
+            a, c, fc = c, d, fd
+            d = a + invphi * (b - a)
+            fd = abs(process(d))
+    v = 0.5 * (a + b)
+    return v, abs(process(v))
+
+
+def positive_lobe_peaks(limit: float) -> list[tuple[float, float]]:
+    """Interior local maxima of |process| on (0, limit].
+
+    The scan is cached. Plugin audio reads DRIVE_PEAKS instead of searching.
+    """
+    if limit < 0.0 or not math.isfinite(limit):
+        raise ValueError(f"limit must be finite and non-negative, got {limit}")
+    cached = getattr(positive_lobe_peaks, "_cache", None)
+    if cached is not None and limit <= cached[0]:
+        return [(v, peak) for v, peak in cached[1] if v <= limit]
+    step = _LOBE_SCAN_STEP
+    n = int(round(limit / step))
+    if n < 2:
+        return []
+    vals = [abs(process(i * step)) for i in range(n + 1)]
+    found: list[tuple[float, float]] = []
+    for i in range(1, n):
+        if vals[i] > vals[i - 1] and vals[i] >= vals[i + 1]:
+            lo = (i - 1) * step
+            hi = min(limit, (i + 1) * step)
+            v, peak = _golden_max_abs(lo, hi)
+            if found and abs(v - found[-1][0]) <= 0.02:
+                if peak > found[-1][1]:
+                    found[-1] = (v, peak)
+            else:
+                found.append((v, peak))
+    positive_lobe_peaks._cache = (limit, found)  # type: ignore[attr-defined]
+    return list(found)
+
+
+def max_abs_process(limit: float) -> float:
+    """max |process(v)| for v in [0, limit]. The peak is a lobe or the endpoint."""
+    if limit < 0.0 or not math.isfinite(limit):
+        raise ValueError(f"limit must be finite and non-negative, got {limit}")
+    if limit == 0.0:
+        return 0.0
+    best = 0.0
+    for v, peak in positive_lobe_peaks(limit):
+        if v <= limit and peak > best:
+            best = peak
+    end = abs(process(limit))
+    if end > best:
+        return end
+    return best
+
+
+def dc_block_pole(sample_rate: float) -> float:
+    """r = exp(-2 * pi * DC_BLOCK_HZ / sample_rate)."""
+    if not math.isfinite(sample_rate) or sample_rate <= 0.0:
+        raise ValueError(f"sample_rate must be finite and positive, got {sample_rate}")
+    return math.exp(-2.0 * math.pi * DC_BLOCK_HZ / sample_rate)
+
+
+def dc_block_step(
+    x: float, x_prev: float, y_prev: float, pole: float
+) -> tuple[float, float, float]:
+    """y[n] = x[n] - x[n-1] + pole * y[n-1]. Returns (y, next_x_prev, next_y_prev)."""
+    y = x - x_prev + pole * y_prev
+    return y, x, y
+
+
+def dc_block(
+    samples: Sequence[float],
+    sample_rate: float,
+    state: tuple[float, float] = (0.0, 0.0),
+) -> tuple[list[float], tuple[float, float]]:
+    """Run the 10 Hz one-pole. state is (x_prev, y_prev), initially (0, 0)."""
+    pole = dc_block_pole(sample_rate)
+    x_prev, y_prev = state
+    out: list[float] = []
+    for x in samples:
+        y, x_prev, y_prev = dc_block_step(x, x_prev, y_prev, pole)
+        out.append(y)
+    return out, (x_prev, y_prev)
+
+
+def dc_block_magnitude(frequency: float, sample_rate: float) -> float:
+    """|H(e^{jw})| of the one-pole, w = 2 * pi * frequency / sample_rate."""
+    if frequency < 0.0 or not math.isfinite(frequency):
+        raise ValueError(f"frequency must be finite and non-negative, got {frequency}")
+    pole = dc_block_pole(sample_rate)
+    w = 2.0 * math.pi * frequency / sample_rate
+    cosine = math.cos(w)
+    num = 2.0 - 2.0 * cosine
+    den = 1.0 + pole * pole - 2.0 * pole * cosine
+    return math.sqrt(num / den)
 
 
 def _bisect_root(lo: float, hi: float, flo: float, fhi: float) -> float:
