@@ -3,8 +3,9 @@
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 Six identical cells. The acceptance curve is this map at g = 1 on
-vin in [-6, 6], before output gain, the fold-amount bound, and the
-DC block. Oversampling and the halfband belong to the later iPlug2 module.
+vin in [-6, 6], before output gain, the fold-amount bound, the
+smoother, and the DC block. The 20 ms smoother and the 63-tap
+decimator are locked in this file. The iPlug2 module is not.
 """
 
 from __future__ import annotations
@@ -39,6 +40,16 @@ OUTPUT_GAIN = 4.3792716960440945
 
 # One-pole highpass after the bound. r = exp(-2 * pi * DC_BLOCK_HZ / fs).
 DC_BLOCK_HZ = 10.0
+
+# One-pole on g, once per audio sample. c = exp(-1 / (SMOOTH_SECONDS * fs)).
+SMOOTH_SECONDS = 0.020
+
+# 4x upsample, six cells, 63-tap lowpass, decimate by 4.
+OVERSAMPLE = 4
+HALFBAND_TAPS_N = 63
+# Cycles per sample of the 4x rate. 0.125 is the audio Nyquist.
+HALFBAND_PASSBAND_EDGE = 0.125
+HALFBAND_STOP_EDGE = 0.75 / 4
 
 # P(g) at the knots below. Linear interpolation in g stays within this
 # relative error on [G_MIN, G_MAX]: |P / P_hat - 1| <= DRIVE_PEAK_REL_ERROR.
@@ -106,6 +117,28 @@ _LOG_K = math.log((IS * R) / _ETA_VT)
 
 _ROOT = Path(__file__).resolve().parent
 _ACCEPTANCE_DIR = _ROOT / "tests"
+
+
+def _load_tap_file(name: str, count: int) -> tuple[float, ...]:
+    """Load a tap CSV. Blank lines and '#' comments are skipped."""
+    taps = []
+    for line in (_ROOT / name).read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        value = float(stripped)
+        if not math.isfinite(value):
+            raise RuntimeError(f"{name} coefficient {len(taps)} is not finite")
+        taps.append(value)
+    if len(taps) != count:
+        raise RuntimeError(f"{name} has {len(taps)} taps, expected {count}")
+    return tuple(taps)
+
+
+# Decimator sum is 1. Upsampler taps are 4 times those, so zero-insertion
+# of a baseband tone returns at unity. The CSV files are the lock.
+HALFBAND_TAPS = _load_tap_file("halfband_taps.csv", HALFBAND_TAPS_N)
+UPSAMPLE_TAPS = _load_tap_file("upsample_taps.csv", HALFBAND_TAPS_N)
 
 
 def _w0_initial(log_z: float) -> float:
@@ -359,6 +392,156 @@ def dc_block_magnitude(frequency: float, sample_rate: float) -> float:
     num = 2.0 - 2.0 * cosine
     den = 1.0 + pole * pole - 2.0 * pole * cosine
     return math.sqrt(num / den)
+
+
+def smooth_coeff(sample_rate: float) -> float:
+    """c = exp(-1 / (SMOOTH_SECONDS * sample_rate))."""
+    if not math.isfinite(sample_rate) or sample_rate <= 0.0:
+        raise ValueError(
+            f"sample_rate must be finite and positive, got {sample_rate}"
+        )
+    return math.exp(-1.0 / (SMOOTH_SECONDS * sample_rate))
+
+
+def smooth_g(state: float, target: float, coeff: float) -> float:
+    """One audio-rate step of the fold-amount smoother.
+
+    g[n] = g[n-1] + (1 - c) * (g_target - g[n-1]).
+    The target is clamped with drive_scale. The state starts at the target.
+    """
+    if not math.isfinite(state):
+        raise ValueError(f"state must be finite, got {state}")
+    if not math.isfinite(coeff) or coeff < 0.0 or coeff > 1.0:
+        raise ValueError(f"coeff must be finite and in [0, 1], got {coeff}")
+    target = drive_scale(target)
+    return state + (1.0 - coeff) * (target - state)
+
+
+def hold_phases(g: float, phases: int = OVERSAMPLE) -> tuple[float, ...]:
+    """The same g on every oversampled phase of one audio sample."""
+    if phases < 1:
+        raise ValueError(f"phases must be positive, got {phases}")
+    if not math.isfinite(g):
+        raise ValueError(f"g must be finite, got {g}")
+    return (g,) * phases
+
+
+def fir_step(
+    x: float, taps: Sequence[float], delay: Sequence[float]
+) -> tuple[float, tuple[float, ...]]:
+    """Direct-form FIR. delay[k] is the input k+1 samples ago.
+
+    len(delay) is len(taps) - 1. The initial delay is zeros.
+    """
+    if not math.isfinite(x):
+        raise ValueError(f"x must be finite, got {x}")
+    n_taps = len(taps)
+    if len(delay) != n_taps - 1:
+        raise ValueError(f"delay length must be {n_taps - 1}, got {len(delay)}")
+    acc = taps[0] * x
+    for k in range(1, n_taps):
+        acc += taps[k] * delay[k - 1]
+    if n_taps == 1:
+        return acc, ()
+    previous = tuple(delay)
+    return acc, (x,) + previous[:-1]
+
+
+def fir_run(
+    samples: Sequence[float],
+    taps: Sequence[float],
+    delay: Sequence[float] | None = None,
+) -> tuple[list[float], tuple[float, ...]]:
+    """Run fir_step. The default delay is zeros."""
+    state = (
+        tuple(0.0 for _ in range(len(taps) - 1))
+        if delay is None
+        else tuple(delay)
+    )
+    out: list[float] = []
+    for sample in samples:
+        y, state = fir_step(sample, taps, state)
+        out.append(y)
+    return out, state
+
+
+def insert_zeros(samples: Sequence[float], factor: int = OVERSAMPLE) -> list[float]:
+    """Insert factor-1 zeros after each sample. factor 4 is the upsampler."""
+    if factor < 1:
+        raise ValueError(f"factor must be positive, got {factor}")
+    if factor == 1:
+        return [float(sample) for sample in samples]
+    padding = [0.0] * (factor - 1)
+    out: list[float] = []
+    for sample in samples:
+        if not math.isfinite(sample):
+            raise ValueError(f"sample must be finite, got {sample}")
+        out.append(float(sample))
+        out.extend(padding)
+    return out
+
+
+def decimate(
+    samples: Sequence[float], factor: int = OVERSAMPLE, phase: int = 0
+) -> list[float]:
+    """Keep every factor-th sample, starting at phase. Phase 0 is the lock."""
+    if factor < 1:
+        raise ValueError(f"factor must be positive, got {factor}")
+    if phase < 0 or phase >= factor:
+        raise ValueError(f"phase must be in [0, {factor}), got {phase}")
+    return list(samples[phase::factor])
+
+
+def fir_magnitude(taps: Sequence[float], cycles_per_sample: float) -> float:
+    """|H| of a real FIR at cycles_per_sample, from the tap sum."""
+    if not math.isfinite(cycles_per_sample):
+        raise ValueError(
+            f"cycles_per_sample must be finite, got {cycles_per_sample}"
+        )
+    omega = 2.0 * math.pi * cycles_per_sample
+    real = 0.0
+    imag = 0.0
+    for index, coef in enumerate(taps):
+        real += coef * math.cos(omega * index)
+        imag -= coef * math.sin(omega * index)
+    return math.hypot(real, imag)
+
+
+def stopband_peak(
+    taps: Sequence[float] | None = None,
+    edge: float = HALFBAND_STOP_EDGE,
+    points: int = 8192,
+) -> float:
+    """Max |H| from edge through 0.5 cycles, on points+1 uniform frequencies."""
+    if taps is None:
+        taps = HALFBAND_TAPS
+    if points < 1:
+        raise ValueError(f"points must be positive, got {points}")
+    if not math.isfinite(edge) or edge < 0.0 or edge > 0.5:
+        raise ValueError(f"edge must be finite and in [0, 0.5], got {edge}")
+    worst = 0.0
+    span = 0.5 - edge
+    for index in range(points + 1):
+        worst = max(worst, fir_magnitude(taps, edge + span * index / points))
+    return worst
+
+
+def passband_deviation(
+    taps: Sequence[float] | None = None,
+    edge: float = HALFBAND_PASSBAND_EDGE,
+    points: int = 8192,
+) -> float:
+    """Max | |H| - 1 | from 0 through edge, on points+1 uniform frequencies."""
+    if taps is None:
+        taps = HALFBAND_TAPS
+    if points < 1:
+        raise ValueError(f"points must be positive, got {points}")
+    if not math.isfinite(edge) or edge < 0.0 or edge > 0.5:
+        raise ValueError(f"edge must be finite and in [0, 0.5], got {edge}")
+    worst = 0.0
+    for index in range(points + 1):
+        worst = max(worst, abs(fir_magnitude(taps, edge * index / points) - 1.0))
+    return worst
 
 
 def _bisect_root(lo: float, hi: float, flo: float, fhi: float) -> float:

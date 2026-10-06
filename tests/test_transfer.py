@@ -252,6 +252,11 @@ class TransferAcceptanceTest(unittest.TestCase):
             "1.152747",
             "within 0.005",
             "25.093",
+            "halfband_taps.csv",
+            "upsample_taps.csv",
+            "g[n] = g[n-1] + (1 - c) * (g_target - g[n-1])",
+            "c = exp(-1 / (0.020 * fs))",
+            "smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband",
         ):
             self.assertIn(phrase, prompt)
 
@@ -359,6 +364,15 @@ class TransferAcceptanceTest(unittest.TestCase):
         self.assertIn("11.71875", self.readme)
         self.assertIn("1.152747", self.readme)
         self.assertIn("0.390095", self.readme)
+        for frequency, six, three in (
+            (11.71875, "0.761185", "0.761"),
+            (40.0, "0.970778", "0.971"),
+            (100.0, "0.995689", "0.996"),
+        ):
+            magnitude = wm.dc_block_magnitude(frequency, fs)
+            self.assertEqual(f"{magnitude:.6f}", six)
+            self.assertEqual(f"{magnitude:.3f}", three)
+            self.assertIn(six, self.readme)
 
         src, got = settled(86)
         peak = max(abs(v) for v in src)

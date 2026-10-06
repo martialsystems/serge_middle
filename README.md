@@ -6,7 +6,7 @@ The middle section of the Serge Wave Multipliers is six identical cells in serie
 y = C(C(C(C(C(C(g * x))))))
 ```
 
-The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test. The VST3 module comes later.
+The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test, the level law, the smoother, and the decimator taps. The VST3 module is not in this repository.
 
 ## Cell
 
@@ -44,7 +44,7 @@ u = 4.379272 * (P(1) / P(g)) * y
 
 With d(g) = g, the drive line is v = g * 5 * a. `v` and `y` are in volts. `u` is the sample before the DC block. P(g) is the peak of |y| on |v| <= 5 d(g). The fixed factor 4.379272 is OUTPUT_GAIN, the reciprocal of the g = 1 raw peak. At each stored knot, for |a| <= 1, the ratio P(1) / P(g) holds the peak of |u| at 1.
 
-The acceptance curve is `y` against cell-input volts on [-6, 6] at g = 1, before OUTPUT_GAIN and before P(1) / P(g).
+The acceptance curve is `y` against cell-input volts on [-6, 6] at g = 1, before OUTPUT_GAIN, before P(1) / P(g), before the smoother, and before the DC block.
 
 On |v| <= 5 the raw map peaks at v = 4.707287 V, y = -0.228348 V. A full-scale sine at g = 1 therefore peaks at 1 after OUTPUT_GAIN and before the DC block. Its mean is below 1e-9.
 
@@ -64,6 +64,35 @@ At g = 2 the raw peak is 25.093 dB above the g = 1 peak. P(1) / P(g) returns tha
 
 If full scale is 1 V, the same sine peaks at 0.161174 V and reaches only the first fold.
 
+## Smoother
+
+g is smoothed once per audio sample. The time constant is 0.020 s. The four oversampled phases of that sample use the same value.
+
+```text
+c = exp(-1 / (0.020 * fs))
+g[n] = g[n-1] + (1 - c) * (g_target - g[n-1])
+```
+
+The knob target is clamped to [0.5, 8] before the update. The state starts at the current target, not at 0.
+
+At fs = 48000, c = 0.9989588756797245. A step from 1 to 2 reaches 1 + (1 - exp(-1)) after 960 samples, which is 1.632121. The iteration at 48 kHz stays within 1e-4 of that value.
+
+## Halfband
+
+The downsampler is a 63-tap linear-phase lowpass, odd length, stored in `halfband_taps.csv`. The matching 4× insert-and-filter coefficients are in `upsample_taps.csv`. Each upsampler coefficient is 4 times the decimator coefficient. The decimator sum is 1 and the upsampler sum is 4. Inserting zeros scales a baseband tone by 1/4, and the factor of 4 returns that tone to unity. The plugin applies the upsampler before the cells and the decimator after them.
+
+Frequencies in this section are cycles per sample of the 4× rate unless a sentence says otherwise. The audio Nyquist is 0.125 on that clock. The passband runs from 0 to 0.125. The stopband runs from 0.1875 to 0.5. The coefficients are a Parks-McClellan equiripple design, weights 1 and 1, scaled so the decimator sum is 1. SciPy 1.13.1 produced them. The CSV files are the lock.
+
+On an 8,193-point grid the passband magnitude stays within 0.0007 of 1. The probe at 0.1125 cycles, 0.45 times the 4× rate divided by 4, has magnitude 1.000024. The probe at 0.1875 cycles, 0.75 times the 4× rate divided by 4, is at -69.19 dB. The stopband peak on that grid is -69.11 dB. The half-amplitude frequency is 0.156181 cycles.
+
+A sine at the pass probe, generated at the 4× rate, filtered by the decimator, and decimated by 4, stays within 0.01 of unity on every decimation phase. A sine at the stop probe, on that same path, is rejected by 69.19 dB. The cells are not in that path.
+
+Inserting zeros, filtering with the upsampler taps, and decimating is the linear upsampler. A sine at or below half the audio Nyquist has its first image at or above 0.1875 cycles, and that round trip stays within 0.01 of unity. The pass probe is at 0.90 times the audio Nyquist. Inserting zeros under that sine also builds an image at 0.1375 cycles, where this transition still has magnitude 0.944259. The four decimation phases of that round trip are not each within 0.01 of unity. The decimator measurement above applies the pass probe at the 4× rate, so that image is not part of the tone.
+
+Even offsets from the center tap are not zero. The largest has absolute value 0.145542. A halfband identity would zero those offsets and cut at 0.25 cycles of the 4× rate, which is the audio sample rate, one octave above the audio Nyquist. A 63-tap Kaiser lowpass cut at 0.25 cycles, with those offsets replaced by zeros and the center tap set to 0.5, leaves the stop probe at 0.00 dB.
+
+The acceptance curve does not go through this filter.
+
 ## DC block
 
 The block after the bound is a one-pole highpass at 10 Hz:
@@ -77,15 +106,15 @@ The state starts at x[-1] = 0 and y[-1] = 0.
 
 At fs = 48000, a 4,096-point full-scale sine at g = 1 with one cycle in the buffer has its fundamental at 11.71875 Hz. After one lead-in period from zero state, the next 4,096 samples have peak ratio 1.152747 and a maximum absolute deviation of 0.390095 times the pre-block peak. The same length with 86 cycles, at 1,007.8125 Hz, stays within 0.005 on both the peak ratio and that deviation.
 
+A pure sine at 11.71875 Hz has steady-state magnitude 0.761185, which reads 0.761 to three decimals. At 40 Hz the magnitude is 0.970778 (0.971). At 100 Hz it is 0.995689 (0.996). The folded buffer is a different measurement. The cutoff stays at 10 Hz.
+
 The acceptance curve does not go through this block.
 
 ## Plugin
 
-The VST3 will be built in iPlug2. JUCE is not the framework for this repository. The build prompt is `IPLUG2.md`.
+The VST3 will be built in iPlug2. JUCE is not the framework for this repository. The build prompt is `IPLUG2.md`. The module is not in this repository.
 
-The module clamps g to [0.5, 8], smooths it, and holds that value across the four oversampled phases of one audio sample. Cell drive is v = 5 * d(g) * a with d(g) = g. The six cells run at 4× the audio rate, and a halfband downsamples. OUTPUT_GAIN, the ratio P(1) / P(g), and the 10 Hz DC block follow the halfband. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, and before the DC block. The module adds no envelope, no oscillator, and no further filter.
-
-Halfband taps and the 4× upsampler coefficients are not locked in this repository. The Dual Universal Slope Generator waits until this module loads and a sine through it matches the locked curve.
+The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. The Dual Universal Slope Generator waits until this module loads and a sine through it matches the locked curve.
 
 ## Curve at g = 1
 
@@ -123,9 +152,15 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 
 | File | Role |
 | --- | --- |
-| `wave_middle.py` | Cell, six-cell map, fold-amount bound, DC block, curve renderer |
+| `wave_middle.py` | Cell, six-cell map, fold-amount bound, smoother, decimator, DC block, curve renderer |
+| `halfband_taps.csv` | 63-tap decimator, sum 1 |
+| `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
 | `IPLUG2.md` | Build prompt for the later module |
-| `tests/test_transfer.py` | Acceptance test |
+| `BUILD.md` | What the later agent copies, and what it may choose |
+| `MATH.md` | Derivation of the locked map |
+| `GOLDEN.md` | Index of the locked numbers |
+| `tests/test_transfer.py` | Curve, level law, and DC block |
+| `tests/test_signal.py` | Smoother and decimator |
 | `tests/__init__.py` | Makes `tests` importable |
 | `tests/transfer_g1.csv` | Curve samples, g = 1 |
 | `tests/transfer_g1.svg` | Curve figure, g = 1 |
