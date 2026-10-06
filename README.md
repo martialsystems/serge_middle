@@ -6,7 +6,7 @@ The middle section of the Serge Wave Multipliers is six identical cells in serie
 y = C(C(C(C(C(C(g * x))))))
 ```
 
-The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test, the level law, the smoother, and the decimator taps. The VST3 module is not in this repository.
+The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test, the level law, the smoother, the decimator taps, and the VST3 in `SergeMiddle/`.
 
 ## Cell
 
@@ -112,7 +112,7 @@ The acceptance curve does not go through this block.
 
 ## Plugin
 
-The VST3 will be built in iPlug2. JUCE is not the framework for this repository. The build prompt is `IPLUG2.md`. The module is not in this repository.
+The VST3 is `SergeMiddle/`, an iPlug2 effect. JUCE is not the framework for this repository. The processing contract is `IPLUG2.md`. The macOS build uses Unix Makefiles.
 
 The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. The Dual Universal Slope Generator waits until this module loads and a sine through it matches the locked curve.
 
@@ -155,8 +155,9 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `wave_middle.py` | Cell, six-cell map, fold-amount bound, smoother, decimator, DC block, curve renderer |
 | `halfband_taps.csv` | 63-tap decimator, sum 1 |
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
-| `IPLUG2.md` | Build prompt for the later module |
-| `BUILD.md` | What the later agent copies, and what it may choose |
+| `SergeMiddle/` | iPlug2 VST3: one Fold knob, the port of `wave_middle.py` |
+| `IPLUG2.md` | Processing order and exclusions |
+| `BUILD.md` | Copied constants, build command, project name, window size |
 | `MATH.md` | Derivation of the locked map |
 | `GOLDEN.md` | Index of the locked numbers |
 | `tests/test_transfer.py` | Curve, level law, and DC block |

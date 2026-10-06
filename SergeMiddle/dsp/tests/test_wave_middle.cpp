@@ -225,6 +225,33 @@ void TestDcBlock()
   Check(std::fabs(dev / peak - 0.390095) < 5e-7, "11.71875 Hz deviation 0.390095", dev / peak, 0.390095);
 }
 
+void TestSinePeaks()
+{
+  // Full-scale sine, before the DC block. 20 Hz keeps the fold harmonics
+  // inside the decimator passband, so the peak is the level law.
+  const double fs = 48000.0;
+  const int n = 48000;
+  const int discard = 8000;
+  const double freq = 20.0;
+  const double gs[] = {1.0, 2.0};
+  for (double g : gs)
+  {
+    serge::WaveMiddleChannel ch;
+    ch.Reset(fs);
+    double peak = 0.0;
+    for (int i = 0; i < n; i++)
+    {
+      const double a = std::sin(2.0 * serge::kPi * freq * static_cast<double>(i) / fs);
+      const double y = ch.StepPreDc(a, g);
+      if (i >= discard)
+        peak = std::fmax(peak, std::fabs(y));
+    }
+    char what[96];
+    std::snprintf(what, sizeof what, "20 Hz full-scale sine peaks at 1 before the DC block, g = %.0f", g);
+    Check(std::fabs(peak - 1.0) < 1e-3, what, peak, 1.0);
+  }
+}
+
 void TestChain()
 {
   const auto rows = ReadCsv(RepoPath("SergeMiddle/dsp/tests/chain_reference.csv"), true);
@@ -255,6 +282,7 @@ int main()
   TestSmoother();
   TestDecimator();
   TestDcBlock();
+  TestSinePeaks();
   TestChain();
   std::printf("%s: %d failure(s)\n", gFailures ? "FAILED" : "PASSED", gFailures);
   return gFailures ? 1 : 0;

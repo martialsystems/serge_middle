@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-Build one VST3 audio effect in iPlug2, the middle section of the Serge Wave Multipliers. JUCE is not the framework. Port the map from `wave_middle.py`. The module is not in this repository yet. Do not start the Dual Universal Slope Generator in this module. It waits until this module loads and a sine through it matches the locked curve.
+The VST3 is `SergeMiddle/` in this repository: one audio effect in iPlug2, the middle section of the Serge Wave Multipliers. JUCE is not the framework. The map is the port of `wave_middle.py`. Do not start the Dual Universal Slope Generator in this module. It waits until this module loads and a sine through it matches the locked curve.
 
 Copy the smoother coefficient and the tap files. Do not redesign them.
 

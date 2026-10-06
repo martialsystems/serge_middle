@@ -9,7 +9,8 @@ endif()
 include(${IPLUG2_DIR}/iPlug2.cmake)
 find_package(iPlug2 REQUIRED)
 
-# The deliverable is the VST3. APP is a standalone host for quick listening.
+# VST3. The standalone APP compiles resources/SergeMiddle-macOS-MainMenu.xib
+# with ibtool. This build uses the command line tools, so the format is VST3.
 iplug_add_plugin(${PROJECT_NAME}
   SOURCES
     SergeMiddle.cpp
@@ -19,5 +20,5 @@ iplug_add_plugin(${PROJECT_NAME}
     resources/resource.h
   RESOURCES
     resources/fonts/Roboto-Regular.ttf
-  FORMATS VST3 APP
+  FORMATS VST3
 )

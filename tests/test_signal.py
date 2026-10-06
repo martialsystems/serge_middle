@@ -246,7 +246,8 @@ class SmootherAndDecimatorTest(unittest.TestCase):
             self.assertIn(coeff, document)
             self.assertIn("halfband_taps.csv", document)
             self.assertIn("upsample_taps.csv", document)
-            self.assertIn("The module is not in this repository", document)
+            self.assertIn("SergeMiddle/", document)
+            self.assertNotIn("The module is not in this repository", document)
         for phrase in (
             "Do not clip the output to [-1, 1]",
             "No envelope",
