@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Sequence
 
 # Shockley parameters for one cell. VT is in volts, Is in amperes, R in ohms.
+# v1 lock: tests/transfer_g1.csv uses this pair. Esqueda et al. 2017 Table 4
+# (eta 1.752, VT 0.025864) is a different fit and is not the plugin.
 VT = 0.02585
 IS = 2.52e-9
 ETA = 1.68
@@ -27,6 +29,14 @@ G_DEFAULT = 1.0
 VIN_MIN = -6.0
 VIN_MAX = 6.0
 N_SAMPLES = 6001
+
+# Audio sample a = ±1 maps to ±5 V into the cells at g = 1: v = g * 5 * a.
+AUDIO_FULL_SCALE_VOLTS = 5.0
+
+# |process(v)| on [-5, 5] at g = 1. The fixed gain is the reciprocal of that peak,
+# so a full-scale sine at g = 1 reaches ±1 before the DC block.
+FULL_SCALE_PEAK_VIN = 4.7072868603604885
+OUTPUT_GAIN = 4.3792716960440945
 
 _ETA_VT = ETA * VT
 _LOG_K = math.log((IS * R) / _ETA_VT)
@@ -116,7 +126,11 @@ def cell(v_in: float) -> float:
 
 
 def process(x: float, g: float = G_DEFAULT, cells: int = N_CELLS) -> float:
-    """y = C applied `cells` times to g*x. Default cells is 6, default g is 1."""
+    """y = C applied `cells` times to g*x. Default cells is 6, default g is 1.
+
+    x is cell-input volts when g is 1. The acceptance curve is this map.
+    Plugin audio uses v = g * AUDIO_FULL_SCALE_VOLTS * a, then OUTPUT_GAIN.
+    """
     if cells < 0:
         raise ValueError(f"cells must be non-negative, got {cells}")
     if not math.isfinite(g):
@@ -125,6 +139,42 @@ def process(x: float, g: float = G_DEFAULT, cells: int = N_CELLS) -> float:
     for _ in range(cells):
         y = cell(y)
     return y
+
+
+def _bisect_root(lo: float, hi: float, flo: float, fhi: float) -> float:
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        fm = process(mid)
+        if flo * fm <= 0.0:
+            hi, fhi = mid, fm
+        else:
+            lo, flo = mid, fm
+    return 0.5 * (lo + hi)
+
+
+def positive_fold_roots() -> list[float]:
+    """First root of each zero-crossing cluster on (0.05, 6].
+
+    When one stage passes near 0 V, the later stages cross zero several times
+    inside about 2 mV. Those roots are one fold. The returned value is the
+    leftmost root of the cluster.
+    """
+    scan_min = 0.05
+    step = 1e-4
+    cluster_gap = 0.01
+    n = int(round((VIN_MAX - scan_min) / step))
+    previous_v = scan_min
+    previous_y = process(previous_v)
+    roots: list[float] = []
+    for i in range(1, n + 1):
+        v = scan_min + i * step
+        y = process(v)
+        if previous_y * y < 0.0:
+            root = _bisect_root(previous_v, v, previous_y, y)
+            if not roots or root - roots[-1] > cluster_gap:
+                roots.append(root)
+        previous_v, previous_y = v, y
+    return roots
 
 
 def acceptance_vin() -> list[float]:
