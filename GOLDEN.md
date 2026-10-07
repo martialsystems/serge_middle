@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, and `upsample_taps.csv`.
+Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, `upsample_taps.csv`, `slope/slope.py`, `slope/tests/feedback_p0_5.csv`, and `slope/tests/feedback_m0_5.csv`.
 
 ## Curve at g = 1
 
@@ -77,3 +77,29 @@ A step from 1 to 2, after 960 samples: 1 + (1 - exp(-1)) = 1.6321205588285577, w
 | Kaiser halfband comparison at the stop probe | 0.00 dB |
 
 The pass probe through the decimator, then 4× decimation, stays within 0.01 of unity. The stop probe on that path is the -69.19 dB row. Cells are absent.
+
+## Slope
+
+One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: rise = fall = 0.005 s. VC adds 0.001 s/V to the switch selection. 1V/oct uses `2 ** V_1v` on the rate. Feedback `a` enters the same exponent as `a * v`.
+
+| figure | value |
+| --- | --- |
+| equal 5 ms period | 480 samples |
+| equal 5 ms END high | 240 samples, duty 1/2 |
+| fall 0.010 s period | 720 samples |
+| fall 0.010 s END high | 240 samples, duty 1/3 |
+| trigger train, 14,400 samples, 300 Hz | 90 triggers, 30 end-pulses |
+| gate 3 V for 960 samples | OUT is 3 V from sample 144 through 959 |
+| gate release | sample 961 is below 3 V |
+| +1 V on 1V/oct | period 240 samples |
+| VC +1 V, switch RISE | period 528 samples, END high 288 |
+| VC +1 V, switch FALL | period 528 samples, END high 240 |
+| VC +1 V, switch BOTH | period 576 samples, END high 288 |
+| linear sample of emitted +5 V | 240 |
+| linear OUT at sample 60 | 1.25 V |
+| a = +0.5, samples through emitted +5 V | 116, +5 V on sample 115 |
+| a = +0.5, OUT at sample 60 | 1.6279456556769976 V |
+| a = -0.5, samples through emitted +5 V | 646, +5 V on sample 645 |
+| a = -0.5, OUT at sample 60 | 1.0411407626453677 V |
+| sha1 `feedback_p0_5.csv` | 0230a301a13c9a1d6ad6339ff2e9f920bda13454 |
+| sha1 `feedback_m0_5.csv` | 764cfacb2e1b2dcfc72ea019275030594a3bad2b |

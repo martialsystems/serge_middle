@@ -1,12 +1,16 @@
 # Serge middle
 
-The middle section of the Serge Wave Multipliers is six identical cells in series:
+PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. The panels sit side by side later.
+
+PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own output jack. The later slope panel mark is a rise and a fall, one peak.
+
+The PLEAT map is six identical cells in series:
 
 ```text
 y = C(C(C(C(C(C(g * x))))))
 ```
 
-The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test, the level law, the smoother, the decimator taps, and the VST3 in `SergeMiddle/`.
+The acceptance test is that map at g = 1 for vin in [-6, 6]. Samples: `tests/transfer_g1.csv` (6,001 samples). Figure: `tests/transfer_g1.svg`. This repository is that test, the level law, the smoother, the decimator taps, the VST3 in `SergeMiddle/`, and the slope map in `slope/`.
 
 ## Cell
 
@@ -114,7 +118,7 @@ The acceptance curve does not go through this block.
 
 The VST3 is `SergeMiddle/`, an iPlug2 effect. JUCE is not the framework for this repository. The processing contract is `IPLUG2.md`. The macOS build uses Unix Makefiles.
 
-The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. The Dual Universal Slope Generator waits until this module loads and a sine through it matches the locked curve.
+The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`.
 
 ## Curve at g = 1
 
@@ -140,6 +144,7 @@ From the repository root:
 
 ```text
 python3 -m unittest discover -s tests -t .
+python3 -m unittest discover -s slope/tests -t .
 ```
 
 Regenerate the curve after a change to the map:
@@ -165,6 +170,9 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `tests/__init__.py` | Makes `tests` importable |
 | `tests/transfer_g1.csv` | Curve samples, g = 1 |
 | `tests/transfer_g1.svg` | Curve figure, g = 1 |
+| `slope/slope.py` | One universal slope, 0 V to +5 V |
+| `slope/README.md` | Slope equations, jacks, and the 48 kHz reference |
+| `slope/tests/` | Slope acceptance, including the two feedback curves |
 | `COPYRIGHT` | Martial Systems LLC, 2026 |
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
