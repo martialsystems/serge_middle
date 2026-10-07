@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, `upsample_taps.csv`, `slope/slope.py`, `slope/tests/feedback_p0_5.csv`, and `slope/tests/feedback_m0_5.csv`.
+Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, `upsample_taps.csv`, `slope/slope.py`, `slope/tests/feedback_p0_5.csv`, `slope/tests/feedback_m0_5.csv`, and `slope/tests/sine_envelope.csv`.
 
 ## Curve at g = 1
 
@@ -80,7 +80,7 @@ The pass probe through the decimator, then 4× decimation, stays within 0.01 of 
 
 ## Slope
 
-One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: rise = fall = 0.005 s. VC adds 0.001 s/V to the switch selection. 1V/oct uses `2 ** V_1v` on the rate. Feedback `a` enters the same exponent as `a * v`.
+One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: rise = fall = 0.005 s. Positive VC shortens the selected time by 0.001 s/V. Negative VC lengthens it. 1V/oct uses `2 ** V_1v` on the rate. Feedback `a` scales the patch from OUT to the VC jack. The stored rises use the BOTH switch.
 
 | figure | value |
 | --- | --- |
@@ -91,15 +91,25 @@ One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: ri
 | trigger train, 14,400 samples, 300 Hz | 90 triggers, 30 end-pulses |
 | gate 3 V for 960 samples | OUT is 3 V from sample 144 through 959 |
 | gate release | sample 961 is below 3 V |
-| +1 V on 1V/oct | period 240 samples |
-| VC +1 V, switch RISE | period 528 samples, END high 288 |
-| VC +1 V, switch FALL | period 528 samples, END high 240 |
-| VC +1 V, switch BOTH | period 576 samples, END high 288 |
+| +1 V on 1V/oct, VC unpatched, a = 0 | period 240 samples |
+| VC +1 V, switch RISE | period 432 samples, END high 192 |
+| VC +1 V, switch FALL | period 432 samples, END high 240 |
+| VC +1 V, switch BOTH | period 384 samples, END high 192 |
+| VC -1 V, switch BOTH | period 576 samples, END high 288 |
+| VC +1 V and +1 V/oct, switch BOTH | period 192 samples, END high 96 |
+| VC +1000 V, switch BOTH | period 2 samples, END high 1 |
 | linear sample of emitted +5 V | 240 |
 | linear OUT at sample 60 | 1.25 V |
-| a = +0.5, samples through emitted +5 V | 116, +5 V on sample 115 |
-| a = +0.5, OUT at sample 60 | 1.6279456556769976 V |
-| a = -0.5, samples through emitted +5 V | 646, +5 V on sample 645 |
-| a = -0.5, OUT at sample 60 | 1.0411407626453677 V |
-| sha1 `feedback_p0_5.csv` | 0230a301a13c9a1d6ad6339ff2e9f920bda13454 |
-| sha1 `feedback_m0_5.csv` | 764cfacb2e1b2dcfc72ea019275030594a3bad2b |
+| a = +0.5, samples through emitted +5 V | 182, +5 V on sample 181 |
+| a = +0.5, OUT at sample 60 | 1.3380204722304918 V |
+| a = +0.5, return to 0 V | sample 361 |
+| a = -0.5, samples through emitted +5 V | 301, +5 V on sample 300 |
+| a = -0.5, OUT at sample 60 | 1.181381188120199 V |
+| a = -0.5, return to 0 V | sample 601 |
+| sha1 `feedback_p0_5.csv` | 91e1e3abd748e51988852b410a83f07c7be2fe59 |
+| sha1 `feedback_m0_5.csv` | 8e46b99808a9a4dbe92b149df717daa91200d1b5 |
+| sine envelope samples | 960 |
+| sine envelope at sample 360 | 4.9995716378700354 V |
+| sine envelope at sample 361 | 5 V |
+| sine envelope valley | 2.088817314142192 V at sample 273 |
+| sha1 `sine_envelope.csv` | 025cb06e7f020e245d015832e88a2f132c558ccb |

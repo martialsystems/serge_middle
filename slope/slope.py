@@ -10,11 +10,13 @@ during the rise or the fall are ignored.
 Each sample emits the voltage held from the previous update, then
 applies this sample's inputs. END is low only while falling.
 
-With feedback at 0, a full excursion of T seconds is
+With the OUT-to-VC patch at 0, a full excursion of T seconds is
 max(1, round(T * fs / 2**V_1v)) samples, and the voltage on sample k of
 that segment is exact: span * k / n on the way up, span * (n - k) / n
-on the way down. Feedback other than 0 integrates
-span / (T * fs) * 2**(V_1v + a * v) volts per sample.
+on the way down. A nonzero patch adds the scaled output to the VC jack.
+Positive VC shortens the selected time by 0.001 s/V. The step is then
+span / (T(v) * fs) * 2**V_1v volts per sample. 1V/oct is that factor
+alone.
 
 The second half is the same circuit on its own output jack and is not
 this file.
@@ -26,7 +28,7 @@ import math
 
 FS = 48000.0
 SPAN = 5.0
-# 1 V on VC adds this many seconds to the selected knob time.
+# Seconds per volt of VC. Positive VC subtracts this from the selected knob time.
 VC_SECONDS_PER_VOLT = 0.001
 TRIG_THRESHOLD = 1.0
 FEEDBACK_MIN = -1.0
@@ -77,16 +79,31 @@ class Slope:
         self.phase = False
         self.k = 0
         self.n = 1
+        self.segment_vc = 0.0
+        self.segment_v_oct = 0.0
+
+    def feedback_amount(self, feedback: float) -> float:
+        """Patch scale from OUT to VC, clamped to [-1, +1]."""
+        return min(FEEDBACK_MAX, max(FEEDBACK_MIN, feedback))
+
+    def patched_vc(self, vc: float, feedback: float) -> float:
+        """VC jack plus the scaled voltage held on OUT."""
+        return vc + self.feedback_amount(feedback) * self.v
 
     def times(self, vc: float) -> tuple[float, float]:
-        """Knob time plus the additive VC, floored at one sample."""
-        added = VC_SECONDS_PER_VOLT * vc
+        """Knob time after the VC offset, floored at one sample.
+
+        Positive ``vc`` shortens the selected time. Negative ``vc``
+        lengthens it. The offset is ``VC_SECONDS_PER_VOLT`` seconds per volt,
+        summed with the knob.
+        """
+        offset = VC_SECONDS_PER_VOLT * vc
         rise = self.rise
         fall = self.fall
         if self.vc_switch in ("rise", "both"):
-            rise += added
+            rise -= offset
         if self.vc_switch in ("fall", "both"):
-            fall += added
+            fall -= offset
         return max(self.t_min, rise), max(self.t_min, fall)
 
     def segment_samples(self, time_seconds: float, v_oct: float) -> int:
@@ -95,32 +112,48 @@ class Slope:
         return max(1, int(round(time_seconds * self.fs / scale)))
 
     def steps(self, vc: float, v_oct: float, feedback: float) -> tuple[float, float]:
-        """Volts per sample at the voltage currently held on the output."""
-        rise_time, fall_time = self.times(vc)
-        amount = min(FEEDBACK_MAX, max(FEEDBACK_MIN, feedback))
-        rate_v = v_oct + amount * self.v
-        scale = 2.0 ** rate_v
+        """Volts per sample from the held output.
+
+        1V/oct scales the rate by ``2 ** V``. The OUT patch changes the
+        selected time through the rise, fall, or both switch.
+        """
+        rise_time, fall_time = self.times(self.patched_vc(vc, feedback))
+        scale = 2.0 ** v_oct
         rise_step = scale * SPAN / (rise_time * self.fs)
         fall_step = scale * SPAN / (fall_time * self.fs)
         return rise_step, fall_step
+
+    def _exact_segment(self, feedback: float) -> bool:
+        return self.feedback_amount(feedback) == 0.0
 
     def _begin_rise(self, vc: float, v_oct: float, feedback: float) -> None:
         self.state = _RISING
         self.v = 0.0
         self.k = 0
-        amount = min(FEEDBACK_MAX, max(FEEDBACK_MIN, feedback))
-        self.phase = amount == 0.0
+        self.phase = self._exact_segment(feedback)
         if self.phase:
+            self.segment_vc = vc
+            self.segment_v_oct = v_oct
             self.n = self.segment_samples(self.times(vc)[0], v_oct)
 
     def _begin_fall(self, vc: float, v_oct: float, feedback: float) -> None:
         self.state = _FALLING
         self.v = SPAN
         self.k = 0
-        amount = min(FEEDBACK_MAX, max(FEEDBACK_MIN, feedback))
-        self.phase = amount == 0.0
+        self.phase = self._exact_segment(feedback)
         if self.phase:
+            self.segment_vc = vc
+            self.segment_v_oct = v_oct
             self.n = self.segment_samples(self.times(vc)[1], v_oct)
+
+    def _hold_exact(self, vc: float, v_oct: float, feedback: float) -> bool:
+        """Rounded count while a is 0 and VC and 1V/oct are unchanged."""
+        return (
+            self.phase
+            and self._exact_segment(feedback)
+            and vc == self.segment_vc
+            and v_oct == self.segment_v_oct
+        )
 
     def step(
         self,
@@ -133,9 +166,9 @@ class Slope:
     ) -> tuple[float, float]:
         """Emit (OUT, END), then advance one sample.
 
-        ``feedback`` scales OUT into the 1V/oct sum, from -1 to +1.
+        ``feedback`` scales the patch from OUT to the VC jack, from -1 to +1.
         ``end_to_trig`` is the cable from the end-pulse back to TRIG.
-        A positive IN is full-wave rectified and overrides TRIG.
+        IN is full-wave rectified. A positive IN overrides TRIG.
         """
         inp = _require_finite("inp", inp)
         trig = _require_finite("trig", trig)
@@ -171,13 +204,13 @@ class Slope:
         out = self.v
         end_gate = 0.0 if self.state == _FALLING else 1.0
 
-        if self.state == _RISING and self.phase:
+        if self.state == _RISING and self._hold_exact(vc, v_oct, feedback):
             self.k += 1
             if self.k >= self.n:
                 self._begin_fall(vc, v_oct, feedback)
             else:
                 self.v = SPAN * self.k / self.n
-        elif self.state == _FALLING and self.phase:
+        elif self.state == _FALLING and self._hold_exact(vc, v_oct, feedback):
             self.k += 1
             if self.k >= self.n:
                 self.v = 0.0
@@ -188,6 +221,7 @@ class Slope:
             else:
                 self.v = SPAN * (self.n - self.k) / self.n
         elif self.state == _RISING:
+            self.phase = False
             rise_step, _fall_step = self.steps(vc, v_oct, feedback)
             self.v += rise_step
             limit = target if target > 0.0 else SPAN
@@ -198,6 +232,7 @@ class Slope:
                 else:
                     self._begin_fall(vc, v_oct, feedback)
         elif self.state == _FALLING:
+            self.phase = False
             _rise_step, fall_step = self.steps(vc, v_oct, feedback)
             self.v -= fall_step
             floor = target if target > 0.0 else 0.0

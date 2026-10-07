@@ -172,7 +172,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `tests/transfer_g1.svg` | Curve figure, g = 1 |
 | `slope/slope.py` | One universal slope, 0 V to +5 V |
 | `slope/README.md` | Slope equations, jacks, and the 48 kHz reference |
-| `slope/tests/` | Slope acceptance, including the two feedback curves |
+| `slope/tests/` | Slope acceptance, the two feedback curves, and the rectified envelope |
 | `COPYRIGHT` | Martial Systems LLC, 2026 |
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
