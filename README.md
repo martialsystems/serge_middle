@@ -2,7 +2,7 @@
 
 PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. The panels sit side by side later.
 
-PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own output jack. The later slope panel mark is a rise and a fall, one peak.
+PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own state. Its AC jack is `AC = 2.5 - OUT`, and `SlopeAC/` is that half as a VST3. Rise and Fall default to 5 ms, and the host sample is AC / 2.5. The later slope panel mark is a rise and a fall, one peak.
 
 The PLEAT map is six identical cells in series:
 
@@ -118,7 +118,7 @@ The acceptance curve does not go through this block.
 
 The VST3 is `SergeMiddle/`, an iPlug2 effect. JUCE is not the framework for this repository. The processing contract is `IPLUG2.md`. The macOS build uses Unix Makefiles.
 
-The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`.
+The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`. The second half's VST3 is `SlopeAC/`.
 
 ## Curve at g = 1
 
@@ -161,6 +161,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `halfband_taps.csv` | 63-tap decimator, sum 1 |
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
 | `SergeMiddle/` | iPlug2 VST3: one Fold knob, the port of `wave_middle.py` |
+| `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, output AC / 2.5 |
 | `IPLUG2.md` | Processing order and exclusions |
 | `BUILD.md` | Copied constants, build command, project name, window size |
 | `MATH.md` | Derivation of the locked map |
@@ -170,9 +171,10 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `tests/__init__.py` | Makes `tests` importable |
 | `tests/transfer_g1.csv` | Curve samples, g = 1 |
 | `tests/transfer_g1.svg` | Curve figure, g = 1 |
-| `slope/slope.py` | One universal slope, 0 V to +5 V |
+| `slope/slope.py` | First slope half, 0 V to +5 V |
+| `slope/second.py` | Second slope half, own state, AC = 2.5 - OUT |
 | `slope/README.md` | Slope equations, jacks, and the 48 kHz reference |
-| `slope/tests/` | Slope acceptance, the two feedback curves, and the rectified envelope |
+| `slope/tests/` | Slope acceptance, the feedback curves, the rectified envelope, and the AC cycle |
 | `COPYRIGHT` | Martial Systems LLC, 2026 |
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.

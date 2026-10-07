@@ -4,7 +4,7 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 One universal slope, the first half of the dual slope generator. Output runs from 0 V to +5 V. Rise and fall are independent linear times for that full excursion. The map is `slope/slope.py`. Acceptance is at 48 kHz, in `slope/tests/`.
 
-The second half is the same circuit with its own output jack. The AC output and a plugin for this slope come after this map. The later panel mark is a rise and a fall, one peak. Panel lettering is that mark and the jack legends. The name Serge is not part of that lettering.
+The second half is `slope/second.py`, the same circuit with its own state. Its extra jack is AC. The panel mark is a rise and a fall, one peak. Panel lettering is that mark and the jack legends. The name Serge is not part of that lettering.
 
 ## Controls
 
@@ -66,6 +66,31 @@ Reference cycle, equal knobs: rise = fall = 5 ms, `a` = 0, `VC` = 0, `V_1v` = 0.
 The stored rises are `slope/tests/feedback_p0_5.csv` (`a` = +0.5) and `slope/tests/feedback_m0_5.csv` (`a` = -0.5). Both use the BOTH switch, with the VC jack at 0 V and 1V/oct at 0 V. Each file runs from the trigger sample through the sample that emits +5 V.
 
 The stored envelope is `slope/tests/sine_envelope.csv`. The input is a bipolar 5 V sine, period 480 samples, 960 samples long. Rise is one sample and fall is 5 ms. Locked figures are in `GOLDEN.md`.
+
+## Second half
+
+`slope/second.py` is the second half. It has its own rise, fall, VC, 1V/oct, and BOTH switch. Stepping it does not step the first half. A cable is a value the caller passes into `step`.
+
+AC is a jack on this half only:
+
+```text
+AC = 2.5 - OUT
+```
+
+OUT at 0 V is AC at +2.5 V. OUT at +5 V is AC at -2.5 V. OUT at +2.5 V is AC at 0 V. AC is not part of `VC_in = VC + a * v`. The first half returns OUT and END.
+
+Free cycle of this half, rise = fall = 5 ms, `a` = 0, end pulse patched to TRIG. The stored samples are `slope/tests/ac_cycle.csv`.
+
+| sample | AC (V) |
+| --- | --- |
+| 0 | +2.5 |
+| 120 | 0 |
+| 240 | -2.5 |
+| 480 | +2.5 |
+
+With `a` = +0.5 on the second half only, AC is -2.5 on sample 181, the sample where OUT emits +5 V. The first half beside that run, at `a` = 0, stays on the linear rise: sample 240 is still +5 V.
+
+The VST3 of this half is `SlopeAC/`. Rise and Fall default to 5 ms. The plugin sample is AC / 2.5, so ±2.5 V is ±1, and that scale is the output. `SergeMiddle/` is the PLEAT panel.
 
 ## How to run
 

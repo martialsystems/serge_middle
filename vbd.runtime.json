@@ -9,6 +9,11 @@
       "id": "slope-acceptance",
       "argv": ["python3", "-m", "unittest", "discover", "-s", "slope/tests", "-t", "."],
       "timeout_s": 60
+    },
+    {
+      "id": "slope-ac-dsp",
+      "argv": ["bash", "SlopeAC/dsp/tests/run_tests.sh"],
+      "timeout_s": 120
     }
   ]
 }

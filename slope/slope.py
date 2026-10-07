@@ -18,8 +18,8 @@ Positive VC shortens the selected time by 0.001 s/V. The step is then
 span / (T(v) * fs) * 2**V_1v volts per sample. 1V/oct is that factor
 alone.
 
-The second half is the same circuit on its own output jack and is not
-this file.
+The second half is the same circuit in slope/second.py, with its own
+state. This class returns OUT and END. It has no AC jack.
 """
 
 from __future__ import annotations
@@ -69,6 +69,15 @@ class Slope:
         self.vc_switch = vc_switch
         self.t_min = 1.0 / self.fs
         self.reset()
+
+    def set_times(self, rise: float, fall: float) -> None:
+        """Replace the knob times. The sample already in a segment keeps its count."""
+        rise = _require_finite("rise", rise)
+        fall = _require_finite("fall", fall)
+        if rise <= 0.0 or fall <= 0.0:
+            raise ValueError("rise and fall must be positive")
+        self.rise = rise
+        self.fall = fall
 
     def reset(self) -> None:
         self.v = 0.0

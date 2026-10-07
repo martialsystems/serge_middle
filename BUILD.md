@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-The VST3 is `SergeMiddle/`. This tree is the contract that project compiles from: the plugin, the documents, the taps, and the tests.
+The PLEAT VST3 is `SergeMiddle/`. The second slope half is `SlopeAC/`. This tree is the contract those projects compile from: the plugins, the documents, the taps, and the tests.
 
 ## Files
 
@@ -84,3 +84,26 @@ Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, one 
 2. The pre-gain curve matches `tests/transfer_g1.csv`.
 3. g = 2 returns to peak 1 after the ratio P(1) / P(g).
 4. With the cells bypassed, the decimator test in `tests/test_signal.py` still holds: the pass probe stays within 0.01 of unity, and the stop probe is rejected by at least 60 dB.
+
+## Slope AC
+
+`SlopeAC/` is the second half. Rise and Fall default to 5 ms. The host sample is AC / 2.5, so ±2.5 V is ±1. The editor is two knobs on a flat fill. Format: VST3, via Unix Makefiles. The PLEAT bundle stays `build/SergeMiddle/out/SergeMiddle.vst3`.
+
+From the repository root:
+
+```text
+bash SlopeAC/dsp/tests/run_tests.sh
+cmake -S SlopeAC -B build/SlopeAC -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG_DEPLOY_PLUGINS=OFF
+cmake --build build/SlopeAC --target SlopeAC-vst3
+codesign --force --sign - build/SlopeAC/out/SlopeAC.vst3
+```
+
+The bundle is `build/SlopeAC/out/SlopeAC.vst3`. `IPLUG_DEPLOY_PLUGINS=OFF` keeps that build out of the user VST3 folder. A configure without it copies the bundle there.
+
+FL Studio on this Mac loads a universal bundle, because its bridge is x86_64. Same Unix Makefiles generator, VST3 only. The symlink replaces a copied bundle at the same path:
+
+```text
+cmake -S SlopeAC -B build/slope-ac-fl -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG2_UNIVERSAL=ON -DIPLUG_DEPLOY_METHOD=SYMLINK
+cmake --build build/slope-ac-fl --target SlopeAC-vst3
+codesign --force --sign - build/slope-ac-fl/out/SlopeAC.vst3
+```

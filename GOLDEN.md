@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, `upsample_taps.csv`, `slope/slope.py`, `slope/tests/feedback_p0_5.csv`, `slope/tests/feedback_m0_5.csv`, and `slope/tests/sine_envelope.csv`.
+Locked numbers for a later agent to diff. The source is `wave_middle.py`, `tests/transfer_g1.csv`, `halfband_taps.csv`, `upsample_taps.csv`, `slope/slope.py`, `slope/tests/feedback_p0_5.csv`, `slope/tests/feedback_m0_5.csv`, `slope/tests/sine_envelope.csv`, `slope/second.py`, and `slope/tests/ac_cycle.csv`.
 
 ## Curve at g = 1
 
@@ -113,3 +113,11 @@ One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: ri
 | sine envelope at sample 361 | 5 V |
 | sine envelope valley | 2.088817314142192 V at sample 273 |
 | sha1 `sine_envelope.csv` | 025cb06e7f020e245d015832e88a2f132c558ccb |
+| AC equation | 2.5 - OUT |
+| AC at sample 0 | +2.5 V |
+| AC at sample 120 | 0 V |
+| AC at sample 240 | -2.5 V |
+| AC at sample 480 | +2.5 V |
+| a = +0.5 on the second half, AC at sample 181 | -2.5 V |
+| sha1 `ac_cycle.csv` | fcc38be6ae30139442b96ec0911369777bb7090e |
+| plugin sample | AC / 2.5 |
