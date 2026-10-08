@@ -14,6 +14,16 @@
       "id": "slope-ac-dsp",
       "argv": ["bash", "SlopeAC/dsp/tests/run_tests.sh"],
       "timeout_s": 120
+    },
+    {
+      "id": "combined-dsp",
+      "argv": ["bash", "SergeMiddleCombined/dsp/tests/run_tests.sh"],
+      "timeout_s": 180
+    },
+    {
+      "id": "combined-editor",
+      "argv": ["python3", "-m", "unittest", "tests.test_combined_editor"],
+      "timeout_s": 60
     }
   ]
 }

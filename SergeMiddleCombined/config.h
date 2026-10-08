@@ -1,0 +1,62 @@
+#define PLUG_NAME "Serge Middle"
+#define PLUG_MFR "MartialSystems"
+#define PLUG_VERSION_HEX 0x00010000
+#define PLUG_VERSION_STR "1.0.0"
+#define PLUG_UNIQUE_ID 'SmCb'
+#define PLUG_MFR_ID 'Mrsy'
+#define PLUG_URL_STR "https://github.com/martialsystems/serge_middle"
+#define PLUG_EMAIL_STR ""
+#define PLUG_COPYRIGHT_STR "Copyright 2026 Martial Systems LLC"
+#define PLUG_CLASS_NAME SergeMiddleCombined
+
+#define BUNDLE_NAME "SergeMiddleCombined"
+#define BUNDLE_MFR "MartialSystems"
+#define BUNDLE_DOMAIN "com"
+
+#define SHARED_RESOURCES_SUBPATH "SergeMiddleCombined"
+
+#define PLUG_CHANNEL_IO "1-1 2-2"
+
+// Same host latency as the PLEAT plugin. The two 63-tap filters delay
+// 31 + 31 samples at the 4x rate, 15.5 audio samples. The host is told 16.
+#define PLUG_LATENCY 16
+#define PLUG_TYPE 0
+#define PLUG_DOES_MIDI_IN 1
+#define PLUG_DOES_MIDI_OUT 0
+#define PLUG_DOES_MPE 0
+#define PLUG_DOES_STATE_CHUNKS 1
+#define PLUG_HAS_UI 1
+// 832 by 624 is middle_plate.png. middle_plate@2x.png is 1664 by 1248.
+#define PLUG_WIDTH 832
+#define PLUG_HEIGHT 624
+#define PLUG_FPS 60
+#define PLUG_SHARED_RESOURCES 0
+#define PLUG_HOST_RESIZE 0
+
+#define AUV2_ENTRY SergeMiddleCombined_Entry
+#define AUV2_ENTRY_STR "SergeMiddleCombined_Entry"
+#define AUV2_FACTORY SergeMiddleCombined_Factory
+#define AUV2_VIEW_CLASS SergeMiddleCombined_View
+#define AUV2_VIEW_CLASS_STR "SergeMiddleCombined_View"
+
+#define AAX_TYPE_IDS 'SmC1', 'SmC2'
+#define AAX_TYPE_IDS_AUDIOSUITE 'SmA1', 'SmA2'
+#define AAX_PLUG_MFR_STR "MartialSystems"
+#define AAX_PLUG_NAME_STR "Serge Middle\nSmCb"
+#define AAX_PLUG_CATEGORY_STR "Effect"
+#define AAX_DOES_AUDIOSUITE 0
+
+#define VST3_SUBCATEGORY "Fx"
+
+#define CLAP_MANUAL_URL ""
+#define CLAP_SUPPORT_URL ""
+#define CLAP_DESCRIPTION "Serge Middle, PLEAT and slope with patch jacks"
+#define CLAP_FEATURES "audio-effect", "distortion"
+
+#define APP_NUM_CHANNELS 2
+#define APP_N_VECTOR_WAIT 0
+#define APP_MULT 1
+#define APP_COPY_AUV3 0
+#define APP_SIGNAL_VECTOR_SIZE 64
+
+#define ROBOTO_FN "Roboto-Regular.ttf"

@@ -1,6 +1,6 @@
 # Serge middle
 
-PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. The panels sit side by side later.
+PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. `SergeMiddleCombined/` puts the two panels side by side, with patch jacks between them.
 
 PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own state. Its AC jack is `AC = 2.5 - OUT`, and `SlopeAC/` is that half as a VST3. Rise and Fall default to 5 ms. Cycle defaults to off, and the host sample is the coupled AC / 2.5. The later slope panel mark is a rise and a fall, one peak.
 
@@ -149,6 +149,7 @@ From the repository root:
 ```text
 python3 -m unittest discover -s tests -t .
 python3 -m unittest discover -s slope/tests -t .
+bash SergeMiddleCombined/dsp/tests/run_tests.sh
 ```
 
 Regenerate the curve after a change to the map:
@@ -166,6 +167,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
 | `SergeMiddle/` | iPlug2 VST3: Fold and IN 2 DC knobs, the port of `wave_middle.py` |
 | `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, Cycle, coupled AC / 2.5 |
+| `SergeMiddleCombined/` | iPlug2 VST3 of both panels: PLEAT, the slope, and the patch jacks |
 | `tests/test_symmetry.py` | IN 2 voltage on `audio_map`, default bit match, cross-language anchor |
 | `tests/test_slope_editor.py` | Slope AC window, Cycle in ProcessBlock, plate and switch art |
 | `tools/art/` | Panel art generator (SVG and PNG) |

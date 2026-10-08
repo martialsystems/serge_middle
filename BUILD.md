@@ -106,4 +106,26 @@ FL Studio on this Mac loads a universal bundle, because its bridge is x86_64. Sa
 cmake -S SlopeAC -B build/slope-ac-fl -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG2_UNIVERSAL=ON -DIPLUG_DEPLOY_METHOD=SYMLINK
 cmake --build build/slope-ac-fl --target SlopeAC-vst3
 codesign --force --sign - build/slope-ac-fl/out/SlopeAC.vst3
+
+## Serge Middle combined
+
+`SergeMiddleCombined/` is both panels in one VST3. The window is 832 by 624. PLEAT is the left half. The slope is the right half. Patch jacks route inside the plugin. Format: VST3, via Unix Makefiles. `SergeMiddle/` and `SlopeAC/` stay separate plugins.
+
+Non-deploying build, from the repository root. `IPLUG_DEPLOY_PLUGINS=OFF` keeps that build out of the user VST3 folder:
+
+```text
+cmake -S SergeMiddleCombined -B build/SergeMiddleCombined -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG_DEPLOY_PLUGINS=OFF
+cmake --build build/SergeMiddleCombined --target SergeMiddleCombined-vst3
+bash SergeMiddleCombined/dsp/tests/run_tests.sh
+```
+
+The bundle is `build/SergeMiddleCombined/out/SergeMiddleCombined.vst3`.
+
+FL Studio on this Mac loads a universal bundle, because its bridge is x86_64. Same Unix Makefiles generator, VST3 only, then an ad-hoc signature:
+
+```text
+cmake -S SergeMiddleCombined -B build/middle-fl -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DIPLUG2_UNIVERSAL=ON -DIPLUG_DEPLOY_METHOD=SYMLINK
+cmake --build build/middle-fl --target SergeMiddleCombined-vst3
+codesign --force --sign - build/middle-fl/out/SergeMiddleCombined.vst3
+```
 ```
