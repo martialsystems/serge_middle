@@ -76,7 +76,7 @@ ctest --test-dir build/dsp-tests --output-on-failure
 
 ## Choices
 
-Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, one Fold knob. Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it. The plate and knob PNGs are prototype art for the host test.
+Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, two knobs (Fold and Symmetry). Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it. The plate and knob art is `pleat_plate.svg` and `pleat_knob.svg`, rasterized to the PNGs.
 
 ## Checks
 

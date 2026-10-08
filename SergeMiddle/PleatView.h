@@ -14,18 +14,22 @@ namespace pleat
 {
 namespace gfx = iplug::igraphics;
 
-inline constexpr float kKnobX = 0.50f;
-inline constexpr float kKnobY = 0.40f;
-inline constexpr float kKnobD = 0.42f;
+inline constexpr float kFoldX = 0.30f;
+inline constexpr float kSymX = 0.70f;
+inline constexpr float kKnobY = 0.38f;
+inline constexpr float kKnobD = 0.29f;
+inline constexpr float kCaptionW = 0.30f;
+inline constexpr float kCaptionTop = 0.495f;
+inline constexpr float kCaptionBottom = 0.545f;
 inline constexpr float kJackY = 0.785f;
 inline constexpr float kJackD = 0.145f;
 inline constexpr int kJackCount = 4;
 inline constexpr float kJackX[kJackCount] = {0.18f, 0.39f, 0.61f, 0.82f};
 
-inline gfx::IRECT KnobBounds(const gfx::IRECT& plate)
+inline gfx::IRECT KnobBounds(const gfx::IRECT& plate, float xFrac)
 {
   const float diameter = kKnobD * plate.W();
-  const float cx = plate.L + kKnobX * plate.W();
+  const float cx = plate.L + xFrac * plate.W();
   const float cy = plate.T + kKnobY * plate.H();
   // The contact shadow sits just outside the skirt, and drawing is clipped to the control.
   const float pad = 14.f;
@@ -33,7 +37,16 @@ inline gfx::IRECT KnobBounds(const gfx::IRECT& plate)
                     cx + diameter * 0.5f + pad, cy + diameter * 0.5f + pad);
 }
 
-// Fold, drawn as the skirted cap. The pointer and its shadow are one bitmap, so they share one angle.
+// Value caption centered on a knob. The plate bitmap carries the knob name.
+inline gfx::IRECT CaptionBounds(const gfx::IRECT& plate, float xFrac)
+{
+  const float cx = plate.L + xFrac * plate.W();
+  const float half = 0.5f * kCaptionW * plate.W();
+  return gfx::IRECT(cx - half, plate.T + kCaptionTop * plate.H(),
+                    cx + half, plate.T + kCaptionBottom * plate.H());
+}
+
+// Skirted cap for Fold and for Symmetry. The pointer and its shadow are one bitmap, so they share one angle.
 class PleatKnob final : public gfx::IKnobControlBase
 {
 public:
@@ -48,7 +61,7 @@ public:
     const float cx = mRECT.MW();
     const float cy = mRECT.MH();
     const float radius = 0.5f * std::min(mRECT.W(), mRECT.H()) - 14.f;
-    g.FillEllipse(gfx::IColor(90, 0, 0, 0), cx, cy + 10.f, radius * 1.02f, radius * 0.96f);
+    g.FillEllipse(gfx::IColor(90, 0, 0, 0), cx, cy + radius * 0.08f, radius * 1.02f, radius * 0.96f);
     const double angle = -130.0 + GetValue() * 260.0;
     g.DrawRotatedBitmap(mBitmap, cx, cy, angle);
   }

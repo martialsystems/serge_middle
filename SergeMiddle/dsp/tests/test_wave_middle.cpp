@@ -8,7 +8,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
+#include <initializer_list>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -272,6 +275,250 @@ void TestChain()
   Check(worstG <= 1e-15, "chain: smoothed g matches Python", worstG, 0.0);
   Check(worstOut <= 1e-9, "chain: full path matches Python within 1e-9", worstOut, 0.0);
 }
+
+bool SameBits(double a, double b)
+{
+  return std::memcmp(&a, &b, sizeof(double)) == 0;
+}
+
+// Pre-change channel: upsampler, six cells, decimator, OUTPUT_GAIN, DC block.
+// No symmetry offset. The bit-identity check compares against this copy.
+class LegacyChannel
+{
+public:
+  LegacyChannel() : mUp(serge::kUpsampleTaps), mDown(serge::kHalfbandTaps) {}
+
+  void Reset(double sampleRate)
+  {
+    mUp.Reset();
+    mDown.Reset();
+    mDc.Reset(sampleRate);
+  }
+
+  double StepPreDc(double a, double g)
+  {
+    if (!std::isfinite(a))
+      a = 0.0;
+    const double v = serge::kAudioFullScaleVolts * serge::DriveScale(g) * a;
+    double decimated = 0.0;
+    for (int phase = 0; phase < serge::kOversample; phase++)
+    {
+      const double hi = mUp.Step(phase == 0 ? v : 0.0);
+      const double cells = mCellsBypassed ? hi : serge::Process(hi);
+      if (phase == 0)
+        decimated = mDown.Step(cells);
+      else
+        mDown.Push(cells);
+    }
+    return serge::OutputScale(g) * decimated;
+  }
+
+  double Step(double a, double g) { return mDc.Step(StepPreDc(a, g)); }
+
+private:
+  serge::Fir63 mUp;
+  serge::Fir63 mDown;
+  serge::DcBlock mDc;
+  bool mCellsBypassed = false;
+};
+
+// Single-bin DFT magnitude. bin is a cycle count over the window.
+double BinMagnitude(const std::vector<double>& x, int bin)
+{
+  const int n = static_cast<int>(x.size());
+  double re = 0.0;
+  double im = 0.0;
+  for (int i = 0; i < n; i++)
+  {
+    const double angle = 2.0 * serge::kPi * static_cast<double>(bin) * static_cast<double>(i) / static_cast<double>(n);
+    re += x[static_cast<size_t>(i)] * std::cos(angle);
+    im -= x[static_cast<size_t>(i)] * std::sin(angle);
+  }
+  return std::hypot(re, im);
+}
+
+struct EvenBins
+{
+  double h1;
+  double h2;
+  double h4;
+};
+
+// 4,096 samples at 48 kHz, 86 cycles, amplitude 0.5, g = 1. One lead-in window, then the measurement.
+// The turn count is reduced before the 2 pi scale. Sample i and sample i + n then share one angle,
+// and even bins of the odd map sit at roundoff. An unreduced angle is not an exact bin at 1e-9.
+EvenBins MeasureEvenBins(double offset)
+{
+  constexpr int n = 4096;
+  constexpr double fs = 48000.0;
+  serge::WaveMiddleChannel channel;
+  channel.Reset(fs);
+  std::vector<double> y(static_cast<size_t>(n));
+  for (int i = 0; i < 2 * n; i++)
+  {
+    const double turns = static_cast<double>((86 * i) % n) / static_cast<double>(n);
+    const double a = 0.5 * std::sin(2.0 * serge::kPi * turns);
+    const double sample = channel.StepPreDc(a, 1.0, offset);
+    if (i >= n)
+      y[static_cast<size_t>(i - n)] = sample;
+  }
+  EvenBins out;
+  out.h1 = BinMagnitude(y, 86);
+  out.h2 = BinMagnitude(y, 172);
+  out.h4 = BinMagnitude(y, 344);
+  return out;
+}
+
+void TestSymmetry()
+{
+  const double fs = 48000.0;
+  constexpr int n = 8192;
+
+  Check(serge::Cell(-0.0) == 0.0 && serge::Cell(0.0) == 0.0, "Cell of both zeros is 0");
+  Check(serge::AudioMap(0.25, 2.0) == serge::AudioMap(0.25, 2.0, 0.0), "AudioMap default offset matches 0");
+  Check(serge::AudioMap(0.0, 1.0) == serge::AudioMap(0.0, 1.0, 0.0), "AudioMap at 0 matches offset 0");
+  Check(serge::AudioMap(-0.0, 1.0) == serge::AudioMap(-0.0, 1.0, 0.0), "AudioMap at -0 matches offset 0");
+  Check(serge::AudioMap(0.0, 1.0, 1.0) == 0.0, "AudioMap at a = 0 is 0 at any offset");
+  Check(serge::AudioMap(0.1, 1.0, 1.0) == serge::OutputScale(1.0) * (serge::Process(1.5) - serge::Process(1.0)),
+        "AudioMap adds the offset in cell-input volts and subtracts C^6(s)");
+  Check(serge::SymmetryBias(0.0) == 0.0 && !std::signbit(serge::SymmetryBias(0.0)), "SymmetryBias(0) is +0");
+
+  LegacyChannel legacy;
+  serge::WaveMiddleChannel withSmoother;
+  serge::WaveMiddleChannel twoArg;
+  serge::WaveMiddleChannel threeArg;
+  legacy.Reset(fs);
+  withSmoother.Reset(fs);
+  twoArg.Reset(fs);
+  threeArg.Reset(fs);
+
+  serge::FoldSmoother fold;
+  fold.Reset(serge::kGDefault, fs);
+  serge::SymmetrySmoother symmetry;
+  symmetry.Reset(0.0, fs);
+
+  bool matchLegacy = true;
+  bool matchArgs = true;
+  bool smootherStaysZero = true;
+  int legacyBad = -1;
+  int argsBad = -1;
+  for (int i = 0; i < n; i++)
+  {
+    double a = std::sin(2.0 * serge::kPi * 440.0 * static_cast<double>(i) / fs);
+    if (i == 17)
+      a = 0.0;
+    else if (i == 18)
+      a = -0.0;
+    else if (i == 4000)
+      a = 0.0;
+    else if (i == 4001)
+      a = -0.0;
+
+    const double gTarget = serge::kGMin + (serge::kGMax - serge::kGMin) * (static_cast<double>(i) / static_cast<double>(n - 1));
+    const double g = fold.Step(gTarget);
+    const double offset = symmetry.Step(0.0);
+    const double zero = 0.0;
+    if (!SameBits(offset, zero))
+      smootherStaysZero = false;
+
+    const double yLegacy = legacy.Step(a, g);
+    const double ySmoothed = withSmoother.Step(a, g, offset);
+    if (!SameBits(yLegacy, ySmoothed))
+    {
+      if (legacyBad < 0)
+      {
+        legacyBad = i;
+        std::printf("FAIL  legacy mismatch at %d  new %.17g legacy %.17g equal %d\n", i, ySmoothed, yLegacy,
+                    ySmoothed == yLegacy);
+      }
+      matchLegacy = false;
+    }
+
+    const double y2 = twoArg.Step(a, g);
+    const double y3 = threeArg.Step(a, g, 0.0);
+    if (!SameBits(y2, y3))
+    {
+      if (argsBad < 0)
+      {
+        argsBad = i;
+        std::printf("FAIL  Step arity mismatch at %d  two %.17g three %.17g\n", i, y2, y3);
+      }
+      matchArgs = false;
+    }
+  }
+  Check(smootherStaysZero, "SymmetrySmoother at target 0 stays +0");
+  Check(matchLegacy, "offset 0 matches the pre-change path on every sample", legacyBad, -1);
+  Check(matchArgs, "Step(a, g) equals Step(a, g, 0.0) on every sample", argsBad, -1);
+
+  const EvenBins at0 = MeasureEvenBins(0.0);
+  const EvenBins atPos = MeasureEvenBins(1.0);
+  const EvenBins atNeg = MeasureEvenBins(-1.0);
+  const double h2OverH1At0 = at0.h2 / at0.h1;
+  const double h4OverH1At0 = at0.h4 / at0.h1;
+  const double h2OverH1Pos = atPos.h2 / atPos.h1;
+  const double h2OverH1Neg = atNeg.h2 / atNeg.h1;
+  std::printf("symmetry ratios: s=0 |H2|/|H1|=%.16g |H4|/|H1|=%.16g; s=+1 |H2|/|H1|=%.16g; s=-1 |H2|/|H1|=%.16g\n",
+              h2OverH1At0, h4OverH1At0, h2OverH1Pos, h2OverH1Neg);
+
+  Check(at0.h1 > 0.0 && atPos.h1 > 0.0 && atNeg.h1 > 0.0, "even-harmonic probe has a fundamental");
+  Check(h2OverH1At0 < 1e-9, "offset 0 |H2|/|H1| below 1e-9", h2OverH1At0, 0.0);
+  Check(h4OverH1At0 < 1e-9, "offset 0 |H4|/|H1| below 1e-9", h4OverH1At0, 0.0);
+  // Measured |H2|/|H1| at s = +1 V is 0.714834 (GOLDEN.md). The floor is below that, with margin.
+  constexpr double kH2OverH1Floor = 0.5;
+  Check(h2OverH1Pos > kH2OverH1Floor, "offset +1 V |H2|/|H1| above the floor", h2OverH1Pos, kH2OverH1Floor);
+  const double mirror = std::fabs(h2OverH1Pos - h2OverH1Neg) / std::fabs(h2OverH1Pos);
+  std::printf("symmetry |H2| mirror relative %.3e\n", mirror);
+  Check(mirror <= 1e-9, "+1 V and -1 V |H2|/|H1| agree within 1e-9 relative", mirror, 0.0);
+
+  serge::SymmetrySmoother smoother;
+  smoother.Reset(1.25, fs);
+  Check(smoother.Value() == 1.25, "symmetry smoother starts at the clamped target", smoother.Value(), 1.25);
+  smoother.Reset(0.0, fs);
+  double stepped = 0.0;
+  for (int i = 0; i < 960; i++)
+    stepped = smoother.Step(1.0);
+  const double want = 1.0 - std::exp(-1.0);
+  Check(std::fabs(stepped - want) < 1e-4, "symmetry step 0 to +1 V after 960 samples", stepped, want);
+
+  smoother.Reset(10.0, fs);
+  Check(smoother.Value() == 2.5, "symmetry target +10 V clamps to +2.5", smoother.Value(), 2.5);
+  smoother.Reset(-10.0, fs);
+  Check(smoother.Value() == -2.5, "symmetry target -10 V clamps to -2.5", smoother.Value(), -2.5);
+  smoother.Reset(0.0, fs);
+  const double towardClamp = smoother.Step(10.0);
+  serge::SymmetrySmoother reference;
+  reference.Reset(0.0, fs);
+  Check(towardClamp == reference.Step(2.5), "Step(+10 V) uses the clamped target +2.5", towardClamp, 2.5 * (1.0 - serge::SmoothCoeff(fs)));
+
+  // A silent input stays silent while s moves, and after a reset at a nonzero s.
+  double silentTurn = 0.0;
+  double silentReset = 0.0;
+  for (double target : {0.5, 1.0, 2.5, -2.5})
+  {
+    serge::WaveMiddleChannel turn;
+    turn.Reset(fs);
+    serge::SymmetrySmoother turnS;
+    turnS.Reset(0.0, fs);
+    serge::WaveMiddleChannel held;
+    held.Reset(fs);
+    serge::SymmetrySmoother heldS;
+    heldS.Reset(target, fs);
+    for (int i = 0; i < 9600; i++)
+    {
+      silentTurn = std::fmax(silentTurn, std::fabs(turn.Step(0.0, 1.0, turnS.Step(target))));
+      silentReset = std::fmax(silentReset, std::fabs(held.Step(0.0, 1.0, heldS.Step(target))));
+    }
+  }
+  Check(silentTurn == 0.0, "silent input: turning Symmetry gives exactly 0", silentTurn, 0.0);
+  Check(silentReset == 0.0, "silent input: reset at a nonzero Symmetry gives exactly 0", silentReset, 0.0);
+
+  smoother.Reset(std::numeric_limits<double>::quiet_NaN(), fs);
+  Check(smoother.Value() == 0.0, "symmetry NaN target reads as 0", smoother.Value(), 0.0);
+  smoother.Reset(1.0, fs);
+  const double nanStep = smoother.Step(std::numeric_limits<double>::quiet_NaN());
+  reference.Reset(1.0, fs);
+  Check(nanStep == reference.Step(0.0), "Step(NaN) uses target 0", nanStep, 0.0);
+}
 } // namespace
 
 int main()
@@ -284,6 +531,7 @@ int main()
   TestDcBlock();
   TestSinePeaks();
   TestChain();
+  TestSymmetry();
   std::printf("%s: %d failure(s)\n", gFailures ? "FAILED" : "PASSED", gFailures);
   return gFailures ? 1 : 0;
 }

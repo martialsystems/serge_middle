@@ -118,7 +118,9 @@ The acceptance curve does not go through this block.
 
 The VST3 is `SergeMiddle/`, an iPlug2 effect. JUCE is not the framework for this repository. The processing contract is `IPLUG2.md`. The macOS build uses Unix Makefiles.
 
-The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`. The second half's VST3 is `SlopeAC/`.
+Symmetry is the offset s in cell-input volts. The range is -2.5 V to +2.5 V and the default is 0. It is smoothed with the same 20 ms one-pole. The smoothed s is added at the 4× rate, after the upsampler and before the six cells, and the static output of s alone is subtracted: y = C^6(v + s) - C^6(s), where v is the upsampled drive. A silent input therefore stays silent while s moves. The same s is held across the four phases. The acceptance curve stays s = 0, where C^6(0) = 0. With a nonzero s the pre-DC peak can exceed 1, and the path does not clip that peak. The 10 Hz block stays on the output and removes the signal-dependent DC that remains.
+
+The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With Symmetry the order is: smooth g, smooth s, v = 5 * g * a, 4× upsample, add s, six cells, subtract C^6(s), 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`. The second half's VST3 is `SlopeAC/`.
 
 ## Curve at g = 1
 
@@ -160,7 +162,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `wave_middle.py` | Cell, six-cell map, fold-amount bound, smoother, decimator, DC block, curve renderer |
 | `halfband_taps.csv` | 63-tap decimator, sum 1 |
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
-| `SergeMiddle/` | iPlug2 VST3: one Fold knob, the port of `wave_middle.py` |
+| `SergeMiddle/` | iPlug2 VST3: Fold and Symmetry knobs, the port of `wave_middle.py` |
 | `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, output AC / 2.5 |
 | `IPLUG2.md` | Processing order and exclusions |
 | `BUILD.md` | Copied constants, build command, project name, window size |

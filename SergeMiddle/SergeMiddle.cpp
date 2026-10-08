@@ -14,6 +14,8 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
   // octave of g takes the same knob travel.
   GetParam(kFold)->InitDouble("Fold", serge::kGDefault, serge::kGMin, serge::kGMax, 0.001, "",
                               0, "", IParam::ShapeExp());
+  // s, a DC offset in cell-input volts. Linear: knob travel matches volts.
+  GetParam(kSymmetry)->InitDouble("Symmetry", serge::kSymDefault, serge::kSymMin, serge::kSymMax, 0.01, "V");
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -21,7 +23,7 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    pGraphics->AttachPanelBackground(IColor(255, 46, 44, 42));
+    pGraphics->AttachPanelBackground(IColor(255, 12, 17, 30));
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     pGraphics->AttachTextEntryControl();
 
@@ -29,19 +31,21 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
     const IBitmap plate = pGraphics->LoadBitmap("pleat_plate.png");
     const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
 
-    // Plate, then the rope, then the cap. The cap is proud of the enamel, so it covers a rope that would hit it.
+    // Plate, cables, both knobs, both captions. A knob is drawn after the rope, so a rope under the cap stays under it.
     pGraphics->AttachControl(new ILambdaControl(
         bounds,
         [plate](ILambdaControl*, IGraphics& g, IRECT& r) { g.DrawFittedBitmap(plate, r); },
         0, false, false, kNoParameter, true));
     pGraphics->AttachControl(new pleat::PleatCables(bounds));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds), kFold, knob));
+    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds, pleat::kFoldX), kFold, knob));
+    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds, pleat::kSymX), kSymmetry, knob));
 
-    const IRECT caption(bounds.L + 0.30f * bounds.W(), bounds.T + 0.575f * bounds.H(),
-                        bounds.L + 0.70f * bounds.W(), bounds.T + 0.650f * bounds.H());
-    const IText valueText(16.f, IColor(230, 236, 224, 206), "Roboto-Regular", EAlign::Center);
-    // GetDisplay of Fold. The same IParam::Value is the smoother target in ProcessBlock.
-    pGraphics->AttachControl(new ICaptionControl(caption, kFold, valueText, COLOR_TRANSPARENT, false));
+    const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
+    // GetDisplay of each knob. The same IParam::Value is the smoother target in ProcessBlock.
+    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bounds, pleat::kFoldX), kFold, valueText,
+                                                 COLOR_TRANSPARENT, false));
+    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bounds, pleat::kSymX), kSymmetry, valueText,
+                                                 COLOR_TRANSPARENT, false));
   };
 #endif
 }
@@ -50,8 +54,9 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
 void SergeMiddle::OnReset()
 {
   const double fs = GetSampleRate();
-  // The smoother state starts at the current target, not at 0.
+  // Each smoother state starts at the current target, not at 0.
   mFold.Reset(GetParam(kFold)->Value(), fs);
+  mSymmetry.Reset(GetParam(kSymmetry)->Value(), fs);
   for (auto& channel : mChannels)
     channel.Reset(fs);
 }
@@ -59,14 +64,16 @@ void SergeMiddle::OnReset()
 void SergeMiddle::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   const double target = GetParam(kFold)->Value();
+  const double symmetry = GetParam(kSymmetry)->Value();
   const int nChans = std::min(NOutChansConnected(), kMaxChannels);
 
   for (int s = 0; s < nFrames; s++)
   {
-    // Once per audio sample; the four oversampled phases share this g.
+    // Once per audio sample. The four oversampled phases share this g and this offset.
     const double g = mFold.Step(target);
+    const double offset = mSymmetry.Step(symmetry);
     for (int c = 0; c < nChans; c++)
-      outputs[c][s] = static_cast<sample>(mChannels[c].Step(inputs[c][s], g));
+      outputs[c][s] = static_cast<sample>(mChannels[c].Step(inputs[c][s], g, offset));
   }
 }
 #endif

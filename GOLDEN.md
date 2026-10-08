@@ -61,6 +61,12 @@ c at 48 kHz = 0.9989588756797245.
 
 A step from 1 to 2, after 960 samples: 1 + (1 - exp(-1)) = 1.6321205588285577, which prints 1.632121. Tolerance 1e-4.
 
+## Symmetry
+
+s is a DC offset in cell-input volts, added after the upsampler and before the six cells. C^6(s) is subtracted after the cells, so a silent input gives exactly 0 at any s. The range is -2.5 V to +2.5 V. The default is 0. The smoother uses the same c as Fold. At 48 kHz, c = 0.9989588756797245.
+
+A 0.5 amplitude sine, 86 cycles in 4,096 samples, g = 1, s = +1 V, measured on the pre-DC output after one lead-in window: |H2| / |H1| = 0.714834.
+
 ## Halfband
 
 63 taps. Decimator sum 1. Upsampler sum 4. Probe frequencies use fs as the 4× rate.

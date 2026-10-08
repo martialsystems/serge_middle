@@ -2,8 +2,8 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-The gray 300 by 300 window is gone. Fold is still the only parameter the
-audio path reads. The plate PNGs are prototype art for the host test.
+The gray 300 by 300 window is gone. Fold and Symmetry are the parameters
+the audio path reads. The plate PNGs are prototype art for the host test.
 """
 
 from __future__ import annotations
@@ -35,13 +35,15 @@ class PleatEditorTest(unittest.TestCase):
         self.assertNotIn("#define PLUG_WIDTH 300", config)
         self.assertNotIn("#define PLUG_HEIGHT 300", config)
 
-    def test_process_block_still_reads_fold_only(self) -> None:
+    def test_process_block_reads_fold_and_symmetry(self) -> None:
         source = (PLUGIN / "SergeMiddle.cpp").read_text(encoding="utf-8")
         start = source.index("void SergeMiddle::ProcessBlock")
         body = source[start:]
         self.assertIn("GetParam(kFold)->Value()", body)
-        self.assertIn("mFold.Step(target)", body)
-        self.assertIn("mChannels[c].Step(inputs[c][s], g)", body)
+        self.assertIn("GetParam(kSymmetry)->Value()", body)
+        self.assertIn("mFold.Step(", body)
+        self.assertIn("mSymmetry.Step(", body)
+        self.assertIn("mChannels[c].Step(inputs[c][s], g, offset)", body)
         for token in ("Pleat", "cable", "Jack", "IN 2", "COLOR_GRAY", "IVKnobControl", "AttachCornerResizer", "Serge Middle"):
             self.assertNotIn(token, body)
         self.assertNotIn("COLOR_GRAY", source)
@@ -90,6 +92,10 @@ class PleatEditorTest(unittest.TestCase):
         # Integer resize of an odd @2x side can leave the 1x file one pixel short.
         self.assertLessEqual(abs(knob_2x[0] - knob[0] * 2), 1)
 
+    def test_plate_and_knob_svg_sources(self) -> None:
+        self.assertTrue((PLUGIN / "resources" / "pleat_plate.svg").is_file())
+        self.assertTrue((PLUGIN / "resources" / "pleat_knob.svg").is_file())
+
     def test_new_prose_has_no_decorative_dash(self) -> None:
         paths = [
             PLUGIN / "PleatView.h",
@@ -97,6 +103,9 @@ class PleatEditorTest(unittest.TestCase):
             PLUGIN / "README.md",
             ROOT / "BUILD.md",
             Path(__file__),
+            ROOT / "GOLDEN.md",
+            ROOT / "IPLUG2.md",
+            ROOT / "README.md",
         ]
         for path in paths:
             text = path.read_text(encoding="utf-8")

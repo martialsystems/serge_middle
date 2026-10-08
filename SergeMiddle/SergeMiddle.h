@@ -11,6 +11,7 @@ const int kNumPresets = 1;
 enum EParams
 {
   kFold = 0,
+  kSymmetry = 1,
   kNumParams
 };
 
@@ -29,6 +30,7 @@ public:
 private:
   static constexpr int kMaxChannels = 2;
   serge::FoldSmoother mFold;
+  serge::SymmetrySmoother mSymmetry;
   serge::WaveMiddleChannel mChannels[kMaxChannels];
 #endif
 };

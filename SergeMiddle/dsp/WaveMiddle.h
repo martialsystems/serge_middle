@@ -25,6 +25,11 @@ inline constexpr double kGMin = 0.5;
 inline constexpr double kGMax = 8.0;
 inline constexpr double kGDefault = 1.0;
 
+// Symmetry offset in cell-input volts, added after the upsampler.
+inline constexpr double kSymMin = -2.5;
+inline constexpr double kSymMax = 2.5;
+inline constexpr double kSymDefault = 0.0;
+
 inline constexpr double kAudioFullScaleVolts = 5.0;
 inline constexpr double kFullScalePeakVin = 4.7072868603604885;
 inline constexpr double kOutputGain = 4.3792716960440945;
@@ -132,6 +137,18 @@ inline double DriveScale(double g)
   return g;
 }
 
+// Symmetry offset on [kSymMin, kSymMax]. A non-finite value reads as the default.
+inline double SymmetryClamp(double offset)
+{
+  if (!std::isfinite(offset))
+    return kSymDefault;
+  if (offset < kSymMin)
+    return kSymMin;
+  if (offset > kSymMax)
+    return kSymMax;
+  return offset;
+}
+
 // P(g), linear in g between the DRIVE_PEAKS knots.
 inline double DrivePeak(double g)
 {
@@ -163,12 +180,23 @@ inline double OutputScale(double g)
   return kOutputGain * DrivePeak(kGDefault) / DrivePeak(g);
 }
 
+// C^6(s), the static output of the cells for the offset alone. Subtracting it
+// keeps a silent input silent at any offset. SymmetryBias(0) is +0.
+inline double SymmetryBias(double offset)
+{
+  return Process(SymmetryClamp(offset));
+}
+
 // One sample with no oversampling and no DC block: the reference for the
-// plugin with both filters bypassed.
-inline double AudioMap(double sample, double g = kGDefault)
+// plugin with both filters bypassed. offset is added in cell-input volts and
+// its static output C^6(s) is subtracted. The acceptance curve and the level
+// law use offset 0. With a nonzero offset the peak can exceed 1. The result
+// is not clipped.
+inline double AudioMap(double sample, double g = kGDefault, double offset = kSymDefault)
 {
   const double volts = kAudioFullScaleVolts * DriveScale(g) * sample;
-  return OutputScale(g) * Process(volts);
+  const double s = SymmetryClamp(offset);
+  return OutputScale(g) * (Process(volts + s) - SymmetryBias(s));
 }
 
 // c = exp(-1 / (0.020 * fs)).
@@ -183,20 +211,24 @@ inline double DcBlockPole(double sampleRate)
   return std::exp(-2.0 * kPi * kDcBlockHz / sampleRate);
 }
 
-// One-pole smoother on the fold amount, stepped once per audio sample.
-class FoldSmoother
+// 20 ms one-pole, stepped once per audio sample. The target is clamped
+// before the update. The state starts at the clamped target.
+//   y[n] = y[n-1] + (1 - c) * (clamp(target) - y[n-1])
+namespace detail
+{
+template <typename Clamp>
+class OnePoleSmoother
 {
 public:
   void Reset(double target, double sampleRate)
   {
     mCoeff = SmoothCoeff(sampleRate);
-    mState = DriveScale(target);
+    mState = Clamp::Apply(target);
   }
 
-  // g[n] = g[n-1] + (1 - c) * (g_target - g[n-1]), target clamped first.
   double Step(double target)
   {
-    mState = mState + (1.0 - mCoeff) * (DriveScale(target) - mState);
+    mState = mState + (1.0 - mCoeff) * (Clamp::Apply(target) - mState);
     return mState;
   }
 
@@ -204,8 +236,27 @@ public:
 
 private:
   double mCoeff = 0.0;
-  double mState = kGDefault;
+  double mState = Clamp::kDefault;
 };
+
+struct FoldClamp
+{
+  static double Apply(double value) { return DriveScale(value); }
+  static constexpr double kDefault = kGDefault;
+};
+
+struct SymmetryClampPolicy
+{
+  static double Apply(double value) { return SymmetryClamp(value); }
+  static constexpr double kDefault = kSymDefault;
+};
+} // namespace detail
+
+// Fold amount. Reset, Step, and Value. The update calls DriveScale.
+using FoldSmoother = detail::OnePoleSmoother<detail::FoldClamp>;
+
+// Symmetry offset in volts. Same coefficient and same update as FoldSmoother.
+using SymmetrySmoother = detail::OnePoleSmoother<detail::SymmetryClampPolicy>;
 
 // 63-tap direct-form FIR. Summation order matches fir_step: newest sample first.
 class Fir63
@@ -273,7 +324,8 @@ private:
 };
 
 // One audio channel of the full path, from v = 5 g a to the DC block.
-// The smoothed g comes from a FoldSmoother shared by all channels.
+// FoldSmoother supplies g. SymmetrySmoother supplies the cell-input offset.
+// Both are shared across channels and stepped once per audio sample.
 class WaveMiddleChannel
 {
 public:
@@ -286,21 +338,40 @@ public:
     mDc.Reset(sampleRate);
   }
 
-  // Test hook: replace the six cells with the identity.
+  // Test hook: replace the six cells with the identity. The hook returns hi
+  // with no offset, so the decimator measurement does not see s.
   void SetCellsBypassed(bool bypass) { mCellsBypassed = bypass; }
 
   // Up to and including the fold-amount bound, before the DC block.
-  double StepPreDc(double a, double g)
+  // offset is one DC voltage for all four phases, added after the upsampler
+  // and before the six cells. Each polyphase branch of the upsampler taps
+  // has its own sum, so an offset on v before the zero insertion would not
+  // be DC at the cells. The cells give C^6(hi + s) - C^6(s): the static
+  // output of the offset alone is subtracted, so a silent input stays silent
+  // while s moves and after a reset at a nonzero s. With offset 0, hi + 0
+  // equals hi for every finite hi and the subtracted term is +0, so the path
+  // is bit-identical to the one with no offset. OUTPUT_GAIN and P(1) / P(g)
+  // are unchanged. With a nonzero offset the pre-DC peak can exceed 1. The
+  // result is not clipped. The DC block on Step removes the signal-dependent
+  // DC that remains.
+  double StepPreDc(double a, double g, double offset = kSymDefault)
   {
     if (!std::isfinite(a))
       a = 0.0;
+    offset = SymmetryClamp(offset);
+    // C^6(s) changes only while the smoother moves, so it is cached on s.
+    if (offset != mBiasOffset)
+    {
+      mBiasOffset = offset;
+      mBias = SymmetryBias(offset);
+    }
     const double v = kAudioFullScaleVolts * DriveScale(g) * a;
     double decimated = 0.0;
     for (int phase = 0; phase < kOversample; phase++)
     {
       // Insert three zeros after the sample, then the upsampler taps.
       const double hi = mUp.Step(phase == 0 ? v : 0.0);
-      const double cells = mCellsBypassed ? hi : Process(hi);
+      const double cells = mCellsBypassed ? hi : Process(hi + offset) - mBias;
       // Decimate by 4, keeping phase 0.
       if (phase == 0)
         decimated = mDown.Step(cells);
@@ -310,13 +381,15 @@ public:
     return OutputScale(g) * decimated;
   }
 
-  double Step(double a, double g) { return mDc.Step(StepPreDc(a, g)); }
+  double Step(double a, double g, double offset = kSymDefault) { return mDc.Step(StepPreDc(a, g, offset)); }
 
 private:
   Fir63 mUp;
   Fir63 mDown;
   DcBlock mDc;
   bool mCellsBypassed = false;
+  double mBiasOffset = kSymDefault;
+  double mBias = 0.0;
 };
 
 } // namespace serge

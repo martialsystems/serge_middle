@@ -25,15 +25,15 @@ Copy `halfband_taps.csv` (63 taps, sum 1) and `upsample_taps.csv` (those taps ti
 
 ## Sample path
 
-g is the fold amount, clamped to [0.5, 8], default 1. Smooth it once per audio sample. The state starts at the current target. Hold the smoothed g constant across the four oversampled phases of one audio sample.
+g is the fold amount, clamped to [0.5, 8], default 1. s is the symmetry offset in cell-input volts, clamped to [-2.5, 2.5], default 0. A non-finite s reads as 0. Smooth each once per audio sample with the one-pole above. The state starts at the current target. Hold the smoothed g and the smoothed s constant across the four oversampled phases of one audio sample.
 
-d(g) = g on that interval. The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block.
+d(g) = g on that interval. The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With symmetry the order is: smooth g, smooth s, v = 5 * g * a, 4× upsample, add s, six cells, subtract C^6(s), 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block.
 
 For each audio sample `a`:
 
-1. Update g with the smoother above. Clamp the knob target to [0.5, 8] before the update. The four oversampled phases use this same g.
+1. Update g with the smoother above. Clamp the knob target to [0.5, 8] before the update. Update s with the same smoother. Clamp the knob target to [-2.5, 2.5] before the update. The four oversampled phases use this same g and this same s.
 2. v = 5 * g * a. With d(g) = g this is the drive line v = 5 * d(g) * a.
-3. Upsample 4×: insert three zeros after the sample, then apply `upsample_taps.csv`. Evaluate the six cells on that high-rate sequence. The cells are `process(v)` with the drive already inside v. They do not apply `OUTPUT_GAIN`.
+3. Upsample 4×: insert three zeros after the sample, then apply `upsample_taps.csv`. Add s to that high-rate sequence and evaluate the six cells on `hi + s`, where hi is the upsampler output. Subtract `process(s)`, the output of s alone, so a silent input stays silent while s moves. The cells are `process(hi + s) - process(s)`. They do not apply `OUTPUT_GAIN`. s = 0 is the locked default and is bit-identical: for every finite hi, hi + 0.0 equals hi, and process(0) is +0. With a nonzero s the pre-DC peak can exceed 1. Do not clip the output to [-1, 1].
 4. Lowpass with `halfband_taps.csv` and decimate by 4, keeping phase 0 (indices 0, 4, 8, ...). Each 63-tap filter has a group delay of 31 samples at the 4× rate.
 5. Multiply by `OUTPUT_GAIN`.
 6. Multiply by P(1) / P(g). P(g) is linear interpolation of `DRIVE_PEAKS` in g, the function `drive_peak`. Apply that ratio as a gain, including where |y| is below the peak. Do not clip the output to [-1, 1].
@@ -56,7 +56,7 @@ On |a| <= 1 at g = 1, steps 5 and 6 together peak at 1 before the DC block. The 
 
 At g = 2 the cell drive is ±10 V and the raw peak is 25.093 dB above the g = 1 peak. Step 6 returns that peak to 1. Between knots the same ratio stays within the relative error 0.001 locked by `DRIVE_PEAK_REL_ERROR`.
 
-`audio_map` applies step 2, the six cells, and steps 5 and 6, with no upsampler and no halfband. With those two filters bypassed, the module matches `audio_map`, because steps 5 and 6 are linear. Odd symmetry: `audio_map(-a, g) = -audio_map(a, g)`. The DC block is linear and runs after the halfband.
+`audio_map` applies step 2, the offset, the six cells less process(s), and steps 5 and 6, with no upsampler and no halfband. At s = 0, with those two filters bypassed, the module matches `audio_map`, because steps 5 and 6 are linear. Odd symmetry at s = 0: `audio_map(-a, g) = -audio_map(a, g)`. s = 0 is the locked default and is bit-identical to the map with no offset. The DC block is linear and runs after the halfband.
 
 The 4,096-point tests in `tests/test_transfer.py` lock the DC block at fs = 48000. One cycle in that buffer is 11.71875 Hz. After one lead-in period the peak ratio is 1.152747. The same length at 1,007.8125 Hz stays within 0.005.
 
