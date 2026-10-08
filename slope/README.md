@@ -90,7 +90,9 @@ Free cycle of this half, rise = fall = 5 ms, `a` = 0, end pulse patched to TRIG.
 
 With `a` = +0.5 on the second half only, AC is -2.5 on sample 181, the sample where OUT emits +5 V. The first half beside that run, at `a` = 0, stays on the linear rise: sample 240 is still +5 V.
 
-The VST3 of this half is `SlopeAC/`. Rise and Fall default to 5 ms. The plugin sample is AC / 2.5, so ±2.5 V is ±1, and that scale is the output. `SergeMiddle/` is the PLEAT panel.
+The VST3 of this half is `SlopeAC/`. Rise and Fall default to 5 ms. The raw plugin sample is AC / 2.5, so ±2.5 V is ±1. The host gets that jack through a coupling capacitor, `B(AC - 2.5) / 2.5`, with B the 10 Hz block (see `SlopeAC/README.md`). `SergeMiddle/` is the PLEAT panel.
+
+The plugin's Cycle switch defaults to off. On is this free cycle: END patched to TRIG, and one trigger armed after reset. Off opens the cord, as on a classic slope with nothing patched, and the output sits at 0 V. The host stays on IN in both positions.
 
 ## How to run
 

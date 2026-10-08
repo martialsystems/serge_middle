@@ -344,14 +344,38 @@ private:
   Circuit mCircuit;
 };
 
-// One host sample. Host ±1 is ±5 V on IN. The arm is a 5 V trigger on the
-// sample after reset. VC, 1V/oct, and the feedback amount stay at 0, and the
-// end pulse is patched to TRIG. The return is AC / 2.5.
-inline double PluginSample(SecondHalf& half, double rise, double fall, double host, bool arm)
+// Samples in one free cycle. Each segment is at least one sample.
+inline int CyclePeriodSamples(double rise, double fall, double fs)
 {
+  const int nRise = std::max(1, RoundHalfEven(rise * fs));
+  const int nFall = std::max(1, RoundHalfEven(fall * fs));
+  return nRise + nFall;
+}
+
+inline double CycleHz(double rise, double fall, double fs)
+{
+  return fs / static_cast<double>(CyclePeriodSamples(rise, fall, fs));
+}
+
+// One circuit sample. Host ±1 is ±5 V on IN. cycle is the end-pulse cord to
+// TRIG. arm is one 5 V trigger on this sample. A non-finite host is read as 0.
+// Every finite host keeps the values it had before that guard. VC, 1V/oct,
+// and the feedback amount stay at 0.
+inline Sample AdvanceSample(SecondHalf& half, double rise, double fall, double host, bool arm,
+                            bool cycle = true)
+{
+  if (!std::isfinite(host))
+    host = 0.0;
   half.SetTimes(rise, fall);
-  const Sample sample = half.Step(5.0 * host, arm ? 5.0 : 0.0, 0.0, 0.0, 0.0, true);
-  return ScaledAc(sample.ac);
+  return half.Step(5.0 * host, arm ? 5.0 : 0.0, 0.0, 0.0, 0.0, cycle);
+}
+
+// The raw jack sample, AC / 2.5. cycle defaults to the cord in place, which is
+// the call this function used to be.
+inline double PluginSample(SecondHalf& half, double rise, double fall, double host, bool arm,
+                           bool cycle = true)
+{
+  return ScaledAc(AdvanceSample(half, rise, fall, host, arm, cycle).ac);
 }
 
 } // namespace slope

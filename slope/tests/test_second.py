@@ -209,7 +209,9 @@ class SecondHalfAcceptanceTest(unittest.TestCase):
             "AC at sample 240 | -2.5 V",
             "AC at sample 480 | +2.5 V",
             "AC at sample 181 | -2.5 V",
-            "plugin sample | AC / 2.5",
+            "raw plugin sample | AC / 2.5",
+            "host sample | B(AC - 2.5) / 2.5",
+            "Cycle default | off",
         ):
             self.assertIn(phrase, golden)
         root = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -222,29 +224,44 @@ class SecondHalfAcceptanceTest(unittest.TestCase):
         cmake = (plugin / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("FORMATS VST3", cmake)
         self.assertNotIn("FORMATS APP", cmake)
-        self.assertNotIn(".png", cmake)
         self.assertIn("Roboto-Regular.ttf", cmake)
+        self.assertIn("slope_plate.png", cmake)
+        self.assertIn("slope_switch.png", cmake)
+        self.assertIn("pleat_knob.png", cmake)
         config = (plugin / "config.h").read_text(encoding="utf-8")
         self.assertIn('#define PLUG_NAME "Slope AC"', config)
         self.assertIn("#define PLUG_LATENCY 0", config)
         self.assertIn('VST3_SUBCATEGORY "Fx"', config)
-        self.assertIn("#define PLUG_WIDTH 320", config)
-        self.assertIn("#define PLUG_HEIGHT 180", config)
+        self.assertIn("#define PLUG_WIDTH 416", config)
+        self.assertIn("#define PLUG_HEIGHT 624", config)
         cpp = (plugin / "SlopeAC.cpp").read_text(encoding="utf-8")
-        self.assertIn("PluginSample", cpp)
+        # ProcessBlock writes the coupled host sample. The raw jack stays in the header.
+        self.assertIn("HostSample", cpp)
+        self.assertNotIn("PluginSample", cpp)
         self.assertIn('InitDouble("Rise", 0.005', cpp)
         self.assertIn('InitDouble("Fall", 0.005', cpp)
-        self.assertIn('IVKnobControl', cpp)
+        self.assertIn("InitBool(\"Cycle\", false)", cpp)
+        self.assertNotIn("IVKnobControl", cpp)
         self.assertIn('"Rise"', cpp)
         self.assertIn('"Fall"', cpp)
         header = (plugin / "dsp" / "SecondHalf.h").read_text(encoding="utf-8")
-        self.assertIn("return ScaledAc(sample.ac);", header)
+        self.assertIn("PluginSample", header)
+        self.assertIn(
+            "return ScaledAc(AdvanceSample(half, rise, fall, host, arm, cycle).ac);",
+            header,
+        )
         self.assertIn("arm ? 5.0 : 0.0", header)
+        coupler = (plugin / "dsp" / "AcCoupler.h").read_text(encoding="utf-8")
+        self.assertIn("AdvanceSample(half, rise, fall, host, arm, cycle).ac", coupler)
+        self.assertIn("acVolts - kAcCenter", coupler)
         for path in (
             plugin / "config.h",
             plugin / "SlopeAC.cpp",
             plugin / "SlopeAC.h",
+            plugin / "SlopeView.h",
             plugin / "dsp" / "SecondHalf.h",
+            plugin / "dsp" / "Readout.h",
+            plugin / "dsp" / "AcCoupler.h",
             plugin / "resources" / "SlopeAC-VST3-Info.plist",
             plugin / "CMakeLists.txt",
             plugin / "README.md",
@@ -256,7 +273,10 @@ class SecondHalfAcceptanceTest(unittest.TestCase):
             plugin / "config.h",
             plugin / "SlopeAC.cpp",
             plugin / "SlopeAC.h",
+            plugin / "SlopeView.h",
             plugin / "dsp" / "SecondHalf.h",
+            plugin / "dsp" / "Readout.h",
+            plugin / "dsp" / "AcCoupler.h",
             plugin / "resources" / "SlopeAC-VST3-Info.plist",
         ):
             self.assertNotIn("Serge", path.read_text(encoding="utf-8"), path.name)

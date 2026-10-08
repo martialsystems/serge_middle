@@ -126,4 +126,8 @@ One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: ri
 | AC at sample 480 | +2.5 V |
 | a = +0.5 on the second half, AC at sample 181 | -2.5 V |
 | sha1 `ac_cycle.csv` | fcc38be6ae30139442b96ec0911369777bb7090e |
-| plugin sample | AC / 2.5 |
+| raw plugin sample | AC / 2.5 |
+| host sample | B(AC - 2.5) / 2.5, B the 10 Hz block |
+| Cycle default | off |
+| rise 0.4 ms, fall 1.0 ms, 48 kHz period | 67 samples, 716.417910 Hz |
+| rise 0.4 ms, fall 1.0 ms, 44.1 kHz period | 62 samples, 711.290323 Hz |

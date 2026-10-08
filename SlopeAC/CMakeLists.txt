@@ -14,8 +14,17 @@ iplug_add_plugin(${PROJECT_NAME}
   SOURCES
     SlopeAC.cpp
     SlopeAC.h
+    SlopeView.h
     dsp/SecondHalf.h
+    dsp/Readout.h
+    dsp/AcCoupler.h
   RESOURCES
     resources/fonts/Roboto-Regular.ttf
+    resources/slope_plate.png
+    resources/slope_plate@2x.png
+    resources/slope_switch.png
+    resources/slope_switch@2x.png
+    ../SergeMiddle/resources/pleat_knob.png
+    ../SergeMiddle/resources/pleat_knob@2x.png
   FORMATS VST3
 )

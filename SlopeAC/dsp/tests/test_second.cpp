@@ -4,12 +4,15 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include "../SecondHalf.h"
+#include "../AcCoupler.h"
+#include "../Readout.h"
 
 #ifndef SERGE_REPO_ROOT
 #error "SERGE_REPO_ROOT must point at the repository root"
@@ -182,6 +185,236 @@ void TestPluginSample()
   Check(ignored, "a positive input ignores the reset trigger");
 }
 
+// The call before Cycle: END is always patched to TRIG, and a non-finite host
+// is not rewritten. Finite hosts must match PluginSample with cycle on.
+double LegacyPluginSample(slope::SecondHalf& half, double rise, double fall, double host, bool arm)
+{
+  half.SetTimes(rise, fall);
+  const auto sample = half.Step(5.0 * host, arm ? 5.0 : 0.0, 0.0, 0.0, 0.0, true);
+  return slope::ScaledAc(sample.ac);
+}
+
+int MeasureCycle(double rise, double fall, double fs)
+{
+  slope::SecondHalf half(rise, fall, fs);
+  const double y0 = slope::PluginSample(half, rise, fall, 0.0, true);
+  for (int i = 1; i < 100000; ++i)
+  {
+    const double y = slope::PluginSample(half, rise, fall, 0.0, false);
+    if (y == y0)
+      return i;
+  }
+  return -1;
+}
+
+void CheckStr(const char* got, const char* want, const char* what)
+{
+  if (std::strcmp(got, want) == 0)
+  {
+    std::printf("ok    %s\n", what);
+    return;
+  }
+  gFailures++;
+  std::printf("FAIL  %s  got \"%s\" want \"%s\"\n", what, got, want);
+}
+
+void TestCycleSwitch()
+{
+  const double fs = 48000.0;
+  const double hosts[] = {0.0, 0.6, -0.6, 1.0, -1.0, 0.19, 0.2};
+  bool same = true;
+  for (double host : hosts)
+  {
+    for (int arm = 0; arm < 2; ++arm)
+    {
+      slope::SecondHalf now(0.005, 0.005, fs);
+      slope::SecondHalf old(0.005, 0.005, fs);
+      for (int i = 0; i < 500; ++i)
+      {
+        const double yNow = slope::PluginSample(now, 0.005, 0.005, host, arm != 0, true);
+        const double yOld = LegacyPluginSample(old, 0.005, 0.005, host, arm != 0);
+        same = same && yNow == yOld;
+      }
+    }
+  }
+  Check(same, "cycle on matches the previous PluginSample on finite hosts");
+
+  slope::SecondHalf quiet(0.005, 0.005, fs);
+  bool idle = true;
+  for (int i = 0; i < 48000; ++i)
+    idle = idle && slope::PluginSample(quiet, 0.005, 0.005, 0.0, false, false) == 1.0;
+  Check(idle, "cycle off: silence is +1 for 48,000 samples");
+
+  const double held = slope::ScaledAc(slope::AcVolts(3.0));
+  slope::SecondHalf released(0.005, 0.005, fs);
+  slope::SecondHalf cycling(0.005, 0.005, fs);
+  bool hold = true;
+  int idleAt = -1;
+  bool stayed = true;
+  bool leftIdle = false;
+  for (int i = 0; i < 4000; ++i)
+  {
+    const double host = i < 960 ? 0.6 : 0.0;
+    const double yOff = slope::PluginSample(released, 0.005, 0.005, host, false, false);
+    const double yOn = slope::PluginSample(cycling, 0.005, 0.005, host, false, true);
+    if (i == 144 || i == 400 || i == 960)
+      hold = hold && yOff == held && yOn == held;
+    if (i == 961)
+      hold = hold && yOff != held && yOn != held;
+    if (i > 960 && idleAt < 0 && yOff == 1.0)
+      idleAt = i;
+    if (idleAt >= 0 && i >= idleAt)
+      stayed = stayed && yOff == 1.0;
+    if (idleAt >= 0 && i > idleAt && yOn != 1.0)
+      leftIdle = true;
+  }
+  Check(hold, "cycle off: host 0.6 holds at 3 V, then the release leaves 3 V");
+  Check(idleAt > 961 && stayed && released.Volts() == 0.0,
+        "cycle off: after the fall the host stays at +1");
+  Check(leftIdle, "cycle on: after the release the slope cycles");
+
+  slope::SecondHalf parked(0.005, 0.005, fs);
+  bool parkedOk = true;
+  for (int i = 0; i < 32; ++i)
+    parkedOk = parkedOk && slope::PluginSample(parked, 0.005, 0.005, 0.0, false, false) == 1.0;
+  slope::SecondHalf fresh(0.005, 0.005, fs);
+  const int period = slope::CyclePeriodSamples(0.005, 0.005, fs);
+  bool flipped = true;
+  double first = 0.0;
+  double second = 0.0;
+  for (int i = 0; i < period; ++i)
+  {
+    const bool arm = i == 0;
+    const double y = slope::PluginSample(parked, 0.005, 0.005, 0.0, arm, true);
+    const double yRef = slope::PluginSample(fresh, 0.005, 0.005, 0.0, arm, true);
+    flipped = flipped && y == yRef;
+    if (i == 0)
+      first = y;
+    if (i == 1)
+      second = y;
+  }
+  Check(parkedOk && flipped && first == 1.0 && second != 1.0 && period == 480,
+        "off-to-on at idle starts a 480-sample cycle on the next sample");
+
+  const int at48 = slope::CyclePeriodSamples(0.0004, 0.0010, 48000.0);
+  const int at44 = slope::CyclePeriodSamples(0.0004, 0.0010, 44100.0);
+  const double hz48 = slope::CycleHz(0.0004, 0.0010, 48000.0);
+  const double hz44 = slope::CycleHz(0.0004, 0.0010, 44100.0);
+  Check(slope::CyclePeriodSamples(0.005, 0.005, fs) == 480, "5 ms cycle is 480 samples");
+  Check(MeasureCycle(0.005, 0.005, fs) == 480, "measured 5 ms PluginSample period is 480");
+  Check(at48 == 67 && MeasureCycle(0.0004, 0.0010, 48000.0) == 67,
+        "0.4 ms / 1.0 ms at 48 kHz is 67 samples");
+  Check(at44 == 62 && MeasureCycle(0.0004, 0.0010, 44100.0) == 62,
+        "0.4 ms / 1.0 ms at 44.1 kHz is 62 samples");
+  Check(hz48 == 48000.0 / 67.0 && hz44 == 44100.0 / 62.0, "cycle rate is fs / period");
+  std::printf("cycle rates: 48 kHz %.6f Hz, 44.1 kHz %.6f Hz\n", hz48, hz44);
+
+  const double nonFinite[] = {
+      std::numeric_limits<double>::quiet_NaN(),
+      std::numeric_limits<double>::infinity(),
+      -std::numeric_limits<double>::infinity(),
+  };
+  bool guarded = true;
+  for (double host : nonFinite)
+  {
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+      slope::SecondHalf bad(0.005, 0.005, fs);
+      slope::SecondHalf zero(0.005, 0.005, fs);
+      const double yBad = slope::PluginSample(bad, 0.005, 0.005, host, false, cycle != 0);
+      const double yZero = slope::PluginSample(zero, 0.005, 0.005, 0.0, false, cycle != 0);
+      guarded = guarded && yBad == yZero;
+    }
+  }
+  Check(guarded, "a non-finite host reads as 0");
+}
+
+void TestCoupler()
+{
+  const double fs = 48000.0;
+  const double pole = slope::AcCouplerPole(fs);
+  const double want = std::exp(-2.0 * std::acos(-1.0) * 10.0 / fs);
+  Check(pole == want, "coupler pole at 48 kHz matches exp(-2 * pi * 10 / fs)");
+
+  slope::AcCoupler law;
+  law.SetSampleRate(fs);
+  law.Reset();
+  const double xs[5] = {0.0, 1.0, -0.5, 0.25, 2.5};
+  double xPrev = 0.0;
+  double yPrev = 0.0;
+  bool steps = true;
+  for (double x : xs)
+  {
+    const double y = law.Step(x);
+    const double expect = x - xPrev + pole * yPrev;
+    steps = steps && y == expect;
+    xPrev = x;
+    yPrev = y;
+  }
+  Check(steps, "coupler step matches the 10 Hz law for 5 samples");
+
+  slope::AcCoupler idleC;
+  idleC.SetSampleRate(fs);
+  idleC.Reset();
+  slope::SecondHalf idle(0.005, 0.005, fs);
+  bool zero = true;
+  for (int i = 0; i < 48000; ++i)
+  {
+    const double y = slope::HostSample(idleC, idle, 0.005, 0.005, 0.0, false, false);
+    zero = zero && y == 0.0;
+  }
+  Check(zero, "cycle off: coupled host is 0 for 48,000 silent samples");
+
+  slope::AcCoupler runC;
+  runC.SetSampleRate(fs);
+  runC.Reset();
+  slope::SecondHalf run(0.005, 0.005, fs);
+  const int period = 480;
+  const int settle = 48000;
+  std::vector<double> y(static_cast<size_t>(period));
+  for (int i = 0; i < settle + period; ++i)
+  {
+    const double sample = slope::HostSample(runC, run, 0.005, 0.005, 0.0, i == 0, true);
+    if (i >= settle)
+      y[static_cast<size_t>(i - settle)] = sample;
+  }
+  double sum = 0.0;
+  double lo = y[0];
+  double hi = y[0];
+  for (double sample : y)
+  {
+    sum += sample;
+    if (sample < lo)
+      lo = sample;
+    if (sample > hi)
+      hi = sample;
+  }
+  const double mean = sum / static_cast<double>(period);
+  const double pp = hi - lo;
+  std::printf("coupled cycle: mean %.6e peak-to-peak %.6f\n", mean, pp);
+  Check(std::fabs(mean) < 1e-3, "coupled 5 ms cycle: mean over one period within 1e-3 of 0");
+  Check(std::fabs(pp - 2.0) <= 0.04, "coupled 5 ms cycle: peak-to-peak within 2% of 2");
+}
+
+void TestReadout()
+{
+  char buf[32];
+  const double times[] = {0.0004, 0.001, 0.005, 0.0125, 0.25, 1.5, 10.0};
+  const char* timeText[] = {"0.40 ms", "1.00 ms", "5.00 ms", "12.5 ms", "250 ms", "1.50 s", "10.0 s"};
+  for (int i = 0; i < 7; ++i)
+  {
+    slope::FormatTime(times[i], buf, sizeof buf);
+    CheckStr(buf, timeText[i], timeText[i]);
+  }
+  const double rates[] = {2.5, 71.4, 714.2, 1071.0};
+  const char* rateText[] = {"2.50 Hz", "71.4 Hz", "714 Hz", "1.07 kHz"};
+  for (int i = 0; i < 4; ++i)
+  {
+    slope::FormatHz(rates[i], buf, sizeof buf);
+    CheckStr(buf, rateText[i], rateText[i]);
+  }
+}
+
 } // namespace
 
 int main()
@@ -190,6 +423,9 @@ int main()
   TestFeedbackStaysOnOut();
   TestIsolationAndGate();
   TestPluginSample();
+  TestCycleSwitch();
+  TestCoupler();
+  TestReadout();
   if (gFailures != 0)
   {
     std::printf("%d failed\n", gFailures);
