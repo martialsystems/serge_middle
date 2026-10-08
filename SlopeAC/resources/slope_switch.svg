@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="112" viewBox="0 0 96 112">
+<!-- CYCLE switch strip: frame 0 OFF (lever left), frame 1 ON (lever right). 48 by 28 per frame at 1x. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->
+<g><defs><radialGradient id="nut" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient><linearGradient id="bat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient></defs>
+<polygon points="63,28 55.5,40.99 40.5,40.99 33,28 40.5,15.01 55.5,15.01" fill="url(#nut)" stroke="#2a2d33" stroke-width="1.2"/>
+<circle cx="48.0" cy="28.0" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>
+<path d="M48,25 L14,26.5 L14,34.5 L48,36 Z" fill="#000" fill-opacity="0.35"/>
+<path d="M48,22 L14,23.5 L14,32.5 L48,34 Z" fill="url(#bat)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="14" cy="28.0" r="6.5" fill="url(#bat)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48.0" cy="28.0" r="5" fill="url(#nut)" stroke="#2a2d33" stroke-width="0.8"/>
+</g>
+<g transform="translate(0,56)"><defs><radialGradient id="nut1" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient><linearGradient id="bat1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient></defs>
+<polygon points="63,28 55.5,40.99 40.5,40.99 33,28 40.5,15.01 55.5,15.01" fill="url(#nut1)" stroke="#2a2d33" stroke-width="1.2"/>
+<circle cx="48.0" cy="28.0" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>
+<path d="M48,25 L82,26.5 L82,34.5 L48,36 Z" fill="#000" fill-opacity="0.35"/>
+<path d="M48,22 L82,23.5 L82,32.5 L48,34 Z" fill="url(#bat1)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="82" cy="28.0" r="6.5" fill="url(#bat1)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48.0" cy="28.0" r="5" fill="url(#nut1)" stroke="#2a2d33" stroke-width="0.8"/>
+</g>
+</svg>
