@@ -8,7 +8,7 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 The SVGs are the source. Lettering is outlined from a Helvetica-class sans
 (Liberation Sans; Arial is the metric twin on macOS), so the files carry no
 <text> and render the same in any SVG renderer. Layout fractions match
-SergeMiddle/PleatView.h and SlopeAC/SlopeView.h.
+SergeMiddle/PleatView.h, SlopeAC/SlopeView.h, and SergeMiddleCombined/PatchView.h.
 
 Needs fontTools. PNG output also needs cairosvg and Pillow.
 The plate PNGs are RGB (colour type 2). The knob and switch PNGs are RGBA.
@@ -123,12 +123,13 @@ def readouts(o):
         o.append(f'<rect x="{f(cx-44)}" y="{f(CAP_T+2)}" width="88" height="{f(CAP_B-CAP_T-4)}" rx="3" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>')
 
 
-def jacks(o, legends, colours):
+def jacks(o, legends, colours, xs=None, prefix=""):
+    xs = JACK_X if xs is None else xs
     o.append(f'<rect x="24" y="430" width="{W-48}" height="112" rx="4" fill="none" stroke="{WHITE}" stroke-width="1.2"/>')
-    for jx, lab, colour in zip(JACK_X, legends, colours):
+    for jx, lab, colour in zip(xs, legends, colours):
         c0, c1 = JACK_COLLARS[colour]
         o.append(f'<path fill="{WHITE}" d="{text_path(lab, jx, 455, 11.5, BOLD, 1.6)}"/>')
-        gid = f"col{lab.replace(' ', '')}"
+        gid = f"col{prefix}{lab.replace(' ', '')}"
         o.append(f'<defs><radialGradient id="{gid}" cx="0.38" cy="0.32" r="0.8"><stop offset="0" stop-color="{c0}"/><stop offset="1" stop-color="{c1}"/></radialGradient></defs>')
         o.append(f'<circle cx="{f(jx)}" cy="{f(JACK_Y)}" r="18.5" fill="none" stroke="{WHITE}" stroke-opacity="0.55" stroke-width="0.9"/>')
         o.append(f'<circle cx="{f(jx)}" cy="{f(JACK_Y)}" r="15" fill="url(#{gid})" stroke="#000" stroke-width="1"/>')
@@ -143,6 +144,12 @@ def pleat_plate_svg():
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
     o.append('<!-- PLEAT plate, Serge style. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
     o.append('<!-- Layout fractions match SergeMiddle/PleatView.h: knobs at x 0.30 W and 0.70 W, y 0.38 H, diameter 0.29 W; jacks at y 0.785 H, x 0.18/0.39/0.61/0.82 W. Text is outlined (Liberation Sans). -->')
+    pleat_body(o)
+    o.append('</svg>')
+    return "\n".join(o) + "\n"
+
+
+def pleat_body(o, combined=False):
     panel_base(o)
     o.append(f'<path fill="{WHITE}" d="{text_path("PLEAT", W/2, 68, 38, BOLD, 9)}"/>')
     o.append(f'<path fill="#c7cdd8" d="{text_path("SERGE MIDDLE", W/2, 90, 10.5, BOLD, 3.6)}"/>')
@@ -174,7 +181,7 @@ def pleat_plate_svg():
     # Transfer glyph: the six-cell map at g = 1 on [-6, 6] (tests/transfer_g1.csv).
     with (ROOT / "tests" / "transfer_g1.csv").open(newline="") as fh:
         rows = list(csv.reader(fh))[1:]
-    gx0, gx1, gyc, gh = 132, 284, 396, 26
+    gx0, gx1, gyc, gh = (132, 284, 396, 26) if not combined else (44, 176, 396, 24)
     pts = []
     for i, (vi, vo) in enumerate(rows):
         if i % 6:
@@ -185,24 +192,46 @@ def pleat_plate_svg():
     o.append(f'<line x1="{gx0}" y1="{gyc}" x2="{gx1}" y2="{gyc}" stroke="{WHITE}" stroke-opacity="0.35" stroke-width="0.8"/>')
     o.append(f'<line x1="{(gx0+gx1)/2}" y1="{gyc-gh-3}" x2="{(gx0+gx1)/2}" y2="{gyc+gh+3}" stroke="{WHITE}" stroke-opacity="0.35" stroke-width="0.8"/>')
     o.append(f'<polyline points="{" ".join(pts)}" fill="none" stroke="{WHITE}" stroke-width="1.3" stroke-linejoin="round"/>')
-    o.append(f'<path fill="#c7cdd8" d="{text_path("6 CELLS", 64, 400, 9, BOLD, 1.6)}"/>')
-    o.append(f'<path fill="#c7cdd8" d="{text_path(chr(0xb1) + "6 V", W-64, 400, 9, BOLD, 1.0)}"/>')
+    if not combined:
+        o.append(f'<path fill="#c7cdd8" d="{text_path("6 CELLS", 64, 400, 9, BOLD, 1.6)}"/>')
+        o.append(f'<path fill="#c7cdd8" d="{text_path(chr(0xb1) + "6 V", W-64, 400, 9, BOLD, 1.0)}"/>')
+    else:
+        o.append(f'<path fill="#c7cdd8" d="{text_path("6 CELLS", (gx0+gx1)/2, 424, 7.5, BOLD, 1.4)}"/>')
+        # VC DEPTH: the small attenuator above the VC jack. The original
+        # middle section had none; current Serge panels have one.
+        cx, cy, r = JACK_X[2], 396.0, 22.0
+        for i in range(11):
+            th = math.radians(-130 + 26 * i)
+            s, c = math.sin(th), math.cos(th)
+            r_out = r + (7 if i in (0, 10) else 4.5)
+            o.append(f'<line x1="{f(cx+(r+1.5)*s)}" y1="{f(cy-(r+1.5)*c)}" x2="{f(cx+r_out*s)}" y2="{f(cy-r_out*c)}" stroke="{WHITE}" stroke-width="{1.4 if i in (0, 10) else 0.9}" stroke-linecap="round"/>')
+        o.append(f'<path fill="{WHITE}" d="{text_path("VC", cx + 40, 392, 11, BOLD, 1.4, "start")}"/>')
+        o.append(f'<path fill="#c7cdd8" d="{text_path("DEPTH", cx + 40, 405, 8, BOLD, 1.2, "start")}"/>')
+        o.append(f'<path fill="#aab2c0" d="{text_path("0", cx - 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
+        o.append(f'<path fill="#aab2c0" d="{text_path("1", cx + 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
     # Original middle-section jacks: IN 1 black (AC coupled), IN 2 blue (DC
     # coupled), VC blue, OUT black (AC coupled).
-    jacks(o, ["IN 1", "IN 2", "VC", "OUT"], ["black", "blue", "blue", "black"])
+    jacks(o, ["IN 1", "IN 2", "VC", "OUT"], ["black", "blue", "blue", "black"], prefix="P" if combined else "")
     for jx, txt in ((JACK_X[0], "AC"), (JACK_X[1], "DC"), (JACK_X[3], "AC")):
         o.append(f'<path fill="#aab2c0" d="{text_path(txt, jx + 27, JACK_Y + 3, 8, BOLD, 0.6, "start")}"/>')
     # Normal mark: a dot by the IN 2 legend matches the dot by the IN 2 DC
     # knob legend. With no cord in IN 2, the knob's voltage is what it reads.
     o.append(f'<circle cx="{f(JACK_X[1] - text_width("IN 2", 11.5, BOLD, 1.6) / 2 - 7)}" cy="451" r="2.6" fill="none" stroke="{WHITE}" stroke-width="1.1"/>')
     o.append(f'<circle cx="{f(KNOB_RX - text_width("IN 2 DC", 13, BOLD, 2.2) / 2 - 8)}" cy="129.5" r="2.6" fill="none" stroke="{WHITE}" stroke-width="1.1"/>')
-    ay = 526
-    o.append(f'<line x1="{f(JACK_X[0])}" y1="{ay}" x2="{f(JACK_X[3]-8)}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
-    o.append(f'<path d="M{f(JACK_X[3]-9)},{ay-3.5} L{f(JACK_X[3])},{ay} L{f(JACK_X[3]-9)},{ay+3.5} Z" fill="{WHITE}" fill-opacity="0.7"/>')
-    o.append(f'<line x1="{f(JACK_X[0])}" y1="{ay-6}" x2="{f(JACK_X[0])}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
-    o.append(f'<line x1="{f(JACK_X[1])}" y1="{ay-6}" x2="{f(JACK_X[1])}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
-    o.append('</svg>')
-    return "\n".join(o) + "\n"
+    if not combined:
+        ay = 526
+        o.append(f'<line x1="{f(JACK_X[0])}" y1="{ay}" x2="{f(JACK_X[3]-8)}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
+        o.append(f'<path d="M{f(JACK_X[3]-9)},{ay-3.5} L{f(JACK_X[3])},{ay} L{f(JACK_X[3]-9)},{ay+3.5} Z" fill="{WHITE}" fill-opacity="0.7"/>')
+        o.append(f'<line x1="{f(JACK_X[0])}" y1="{ay-6}" x2="{f(JACK_X[0])}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
+        o.append(f'<line x1="{f(JACK_X[1])}" y1="{ay-6}" x2="{f(JACK_X[1])}" y2="{ay}" stroke="{WHITE}" stroke-opacity="0.7" stroke-width="1"/>')
+    else:
+        normals(o, [(JACK_X[0], "\u2190 HOST"), (JACK_X[1], "\u2190 KNOB"), (JACK_X[2], "\u2190 SLOPE"), (JACK_X[3], "\u2192 HOST")])
+
+
+def normals(o, items):
+    # Normal legends under the jacks: where an unpatched jack listens or sends.
+    for jx, txt in items:
+        o.append(f'<path fill="#9fb0c8" d="{text_path(txt, jx, 528, 7.5, BOLD, 0.8)}"/>')
 
 
 def knob_svg():
@@ -245,6 +274,15 @@ def slope_plate_svg():
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
     o.append('<!-- Slope AC plate. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
     o.append('<!-- Lettering is the rise-and-fall mark and the legends (slope/README.md). Layout fractions match SlopeAC/SlopeView.h: knobs at x 0.30 W and 0.70 W, y 0.38 H, diameter 0.29 W; captions 0.495 H to 0.545 H; switch centre (0.30 W, 0.655 H); rate readout 0.70 W, 0.633 H to 0.677 H; jacks at y 0.785 H, x 0.18/0.39/0.61/0.82 W. Text is outlined (Liberation Sans). -->')
+    slope_body(o)
+    o.append('</svg>')
+    return "\n".join(o) + "\n"
+
+
+SLOPE6_X = [0.12 * W, 0.27 * W, 0.42 * W, 0.58 * W, 0.73 * W, 0.88 * W]
+
+
+def slope_body(o, combined=False):
     panel_base(o)
     # The panel mark: one rise, one fall, one peak, on a baseline.
     base, peak = 86, 34
@@ -304,10 +342,16 @@ def slope_plate_svg():
     pts.append(f"{f(tx0+60)},{ty0}")
     o.append(f'<polyline points="{" ".join(pts)}" fill="none" stroke="{WHITE}" stroke-width="1.3" stroke-linejoin="miter"/>')
 
-    # Serge colours: audio and slope outputs black, the trigger red (logic).
-    jacks(o, ["IN", "TRIG", "OUT", "AC"], ["black", "red", "black", "black"])
-    o.append('</svg>')
-    return "\n".join(o) + "\n"
+    if not combined:
+        # Serge colours: audio and slope outputs black, the trigger red (logic).
+        jacks(o, ["IN", "TRIG", "OUT", "AC"], ["black", "red", "black", "black"])
+        return
+    # The DUSG section: inputs IN, TRIG, VC, then outputs END, OUT, AC.
+    # IN black, TRIG red, VC blue, END red (logic), OUT black, AC black.
+    jacks(o, ["IN", "TRIG", "VC", "END", "OUT", "AC"], ["black", "red", "blue", "red", "black", "black"], SLOPE6_X, "S")
+    xm = (SLOPE6_X[2] + SLOPE6_X[3]) / 2
+    o.append(f'<line x1="{f(xm)}" y1="440" x2="{f(xm)}" y2="532" stroke="{WHITE}" stroke-opacity="0.35" stroke-width="0.8" stroke-dasharray="2 3"/>')
+    normals(o, [(SLOPE6_X[1], "\u2190 MIDI"), (SLOPE6_X[4], "\u2192 PLEAT VC")])
 
 
 def switch_frame_svg(on: bool):
@@ -344,6 +388,28 @@ def switch_svg():
             f'<g>{off}</g>\n<g transform="translate(0,56)">{on}</g>\n</svg>\n')
 
 
+
+# ---------------------------------------------------------------- combined
+
+def middle_plate_svg():
+    o = []
+    o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{2*W}" height="{H}" viewBox="0 0 {2*W} {H}">')
+    o.append('<!-- Serge Middle combined plate: PLEAT (x 0..416) and the slope (x 416..832). Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
+    o.append('<!-- Layout matches SergeMiddleCombined/PatchView.h. PLEAT: knobs (0.30, 0.38) and (0.70, 0.38) of the panel, VC DEPTH centre (253.76, 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope: knobs (0.30, 0.38) and (0.70, 0.38), switch (0.30 W, 0.655 H), jacks y 0.785 H at x 0.12/0.27/0.42/0.58/0.73/0.88 W. Text is outlined (Liberation Sans). -->')
+    o.append('<g>')
+    pleat_body(o, combined=True)
+    o.append('</g>')
+    o.append(f'<g transform="translate({W},0)">')
+    slope_body(o, combined=True)
+    o.append('</g>')
+    # The slope OUT to PLEAT VC normal, drawn across both panels under the jack boxes.
+    x0, x1, y = W + SLOPE6_X[4], JACK_X[2], 562
+    o.append(f'<path d="M{f(x0)},542 L{f(x0)},{y} L{f(x1)},{y} L{f(x1)},549" fill="none" stroke="#9fb0c8" stroke-width="1.1" stroke-dasharray="4 3"/>')
+    o.append(f'<path d="M{f(x1-4)},550 L{f(x1)},543 L{f(x1+4)},550 Z" fill="#9fb0c8"/>')
+    o.append(f'<path fill="#9fb0c8" d="{text_path("NORMAL: SLOPE OUT TO PLEAT VC", (x0+x1)/2, y+13, 7.5, BOLD, 1.0)}"/>')
+    o.append('</svg>')
+    return "\n".join(o) + "\n"
+
 # ---------------------------------------------------------------- output
 
 def rasterize(svg_path: Path, png_path: Path, width: int, height: int, mode: str):
@@ -365,11 +431,14 @@ def main() -> int:
 
     pleat = ROOT / "SergeMiddle" / "resources"
     slope = ROOT / "SlopeAC" / "resources"
+    combo = ROOT / "SergeMiddleCombined" / "resources"
+    combo.mkdir(parents=True, exist_ok=True)
     jobs = [
         (pleat / "pleat_plate.svg", pleat_plate_svg(), (W, H), "RGB"),
         (pleat / "pleat_knob.svg", knob_svg(), (120, 120), "RGBA"),
         (slope / "slope_plate.svg", slope_plate_svg(), (W, H), "RGB"),
         (slope / "slope_switch.svg", switch_svg(), (48, 56), "RGBA"),
+        (combo / "middle_plate.svg", middle_plate_svg(), (2 * W, H), "RGB"),
     ]
     for path, text, (w, h), mode in jobs:
         path.write_text(text, encoding="utf-8")
