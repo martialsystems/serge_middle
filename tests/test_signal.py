@@ -235,8 +235,9 @@ class SmootherAndDecimatorTest(unittest.TestCase):
 
     def test_documents_lock_the_smoother_and_the_taps(self) -> None:
         order = (
-            "smooth g, v = 5 * g * a, 4× upsample, six cells, "
-            "63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block"
+            "IN 1 block, smooth g, smooth s, v = 2.5 * g * a, 4× upsample, add s, "
+            "six cells, subtract C^6(s), 63-tap halfband, decimate, OUTPUT_GAIN, "
+            "P(1) / P(g), 10 Hz block"
         )
         smoother = "g[n] = g[n-1] + (1 - c) * (g_target - g[n-1])"
         coeff = "c = exp(-1 / (0.020 * fs))"

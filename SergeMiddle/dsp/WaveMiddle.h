@@ -25,14 +25,15 @@ inline constexpr double kGMin = 0.5;
 inline constexpr double kGMax = 8.0;
 inline constexpr double kGDefault = 1.0;
 
-// Symmetry offset in cell-input volts, added after the upsampler.
+// s is the DC voltage on IN 2 that the knob stands in for. It is added after the upsampler.
 inline constexpr double kSymMin = -2.5;
 inline constexpr double kSymMax = 2.5;
 inline constexpr double kSymDefault = 0.0;
 
-inline constexpr double kAudioFullScaleVolts = 5.0;
-inline constexpr double kFullScalePeakVin = 4.7072868603604885;
-inline constexpr double kOutputGain = 4.3792716960440945;
+// Serge level: host ±1 is ±2.5 V. OUTPUT_GAIN is 1 / max |C^6| on |v| <= 2.5.
+inline constexpr double kAudioFullScaleVolts = 2.5;
+inline constexpr double kFullScalePeakVin = 1.9540205790723362;
+inline constexpr double kOutputGain = 5.632920993639031;
 
 inline constexpr double kDcBlockHz = 10.0;
 inline constexpr double kSmoothSeconds = 0.020;
@@ -323,9 +324,12 @@ private:
   double mYPrev = 0.0;
 };
 
-// One audio channel of the full path, from v = 5 g a to the DC block.
-// FoldSmoother supplies g. SymmetrySmoother supplies the cell-input offset.
-// Both are shared across channels and stepped once per audio sample.
+// One audio channel. s is the DC voltage on IN 2 that the knob stands in for.
+// Order: IN 1 block, then v = kAudioFullScaleVolts * g * a, 4x upsample,
+// add s, six cells, subtract C^6(s), halfband, decimate, OUTPUT_GAIN,
+// P(1) / P(g), 10 Hz output block. FoldSmoother supplies g and
+// SymmetrySmoother supplies s. Both are shared across channels and stepped
+// once per audio sample, outside this class.
 class WaveMiddleChannel
 {
 public:
@@ -335,12 +339,16 @@ public:
   {
     mUp.Reset();
     mDown.Reset();
+    mIn.Reset(sampleRate);
     mDc.Reset(sampleRate);
   }
 
   // Test hook: replace the six cells with the identity. The hook returns hi
   // with no offset, so the decimator measurement does not see s.
   void SetCellsBypassed(bool bypass) { mCellsBypassed = bypass; }
+
+  // Test hook: leave the host sample on the drive, with no IN 1 block.
+  void SetInputBlockBypassed(bool bypass) { mInputBypassed = bypass; }
 
   // Up to and including the fold-amount bound, before the DC block.
   // offset is one DC voltage for all four phases, added after the upsampler
@@ -358,6 +366,8 @@ public:
   {
     if (!std::isfinite(a))
       a = 0.0;
+    if (!mInputBypassed)
+      a = mIn.Step(a);
     offset = SymmetryClamp(offset);
     // C^6(s) changes only while the smoother moves, so it is cached on s.
     if (offset != mBiasOffset)
@@ -386,8 +396,10 @@ public:
 private:
   Fir63 mUp;
   Fir63 mDown;
+  DcBlock mIn;
   DcBlock mDc;
   bool mCellsBypassed = false;
+  bool mInputBypassed = false;
   double mBiasOffset = kSymDefault;
   double mBias = 0.0;
 };

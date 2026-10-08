@@ -27,16 +27,23 @@ G_MIN = 0.5
 G_MAX = 8.0
 G_DEFAULT = 1.0
 
+# s is the DC voltage on IN 2 that the knob stands in for, in cell-input volts.
+SYM_MIN = -2.5
+SYM_MAX = 2.5
+SYM_DEFAULT = 0.0
+
 VIN_MIN = -6.0
 VIN_MAX = 6.0
 N_SAMPLES = 6001
 
-# Audio sample a in [-1, 1]. d(g) = g, so v = 5 * d(g) * a.
-# At g = 1 that is ±5 V. OUTPUT_GAIN is the reciprocal of the raw peak there.
-# DRIVE_PEAKS is P(g) = max |process| on |v| <= 5 d(g). The bound is P(1) / P(g).
-AUDIO_FULL_SCALE_VOLTS = 5.0
-FULL_SCALE_PEAK_VIN = 4.7072868603604885
-OUTPUT_GAIN = 4.3792716960440945
+# Serge level. Host a in [-1, 1] is ±2.5 V, the black-jack range in La Bestia 3 p6.
+# d(g) = g, so v = 2.5 * d(g) * a. At g = 1 that is ±2.5 V.
+# OUTPUT_GAIN is the reciprocal of the raw peak of |C^6| on that interval.
+# DRIVE_PEAKS is P(g) = max |process| on |v| <= 2.5 d(g). The bound is P(1) / P(g).
+# The tuple is build_drive_peaks() pasted once. Import does not rescan.
+AUDIO_FULL_SCALE_VOLTS = 2.5
+FULL_SCALE_PEAK_VIN = 1.9540205790723362
+OUTPUT_GAIN = 5.632920993639031
 
 # One-pole highpass after the bound. r = exp(-2 * pi * DC_BLOCK_HZ / fs).
 DC_BLOCK_HZ = 10.0
@@ -55,59 +62,60 @@ HALFBAND_STOP_EDGE = 0.75 / 4
 # relative error on [G_MIN, G_MAX]: |P / P_hat - 1| <= DRIVE_PEAK_REL_ERROR.
 DRIVE_PEAK_REL_ERROR = 1e-3
 DRIVE_PEAKS = (
-    (0.5, 0.1775277872935283),
-    (0.5474003977393376, 0.1775277872935283),
-    (0.5497340568500901, 0.1801083216190401),
-    (0.5521767654519992, 0.1823810649417758),
-    (0.5547067136468338, 0.1843095472151966),
-    (0.5573675212310563, 0.18591382561662023),
-    (0.5601591882046668, 0.18717748565229037),
-    (0.5630599046694339, 0.18808406500314873),
-    (0.566091480523589, 0.18863517809647518),
-    (0.5692102959706695, 0.18881896732707976),
-    (0.7307789759456843, 0.18881896732707976),
-    (0.7332654411052391, 0.19231787361341546),
-    (0.7358191080258628, 0.19538316727663818),
-    (0.7384623772945786, 0.19801606632845936),
-    (0.7411952489113867, 0.20019412313069718),
-    (0.7440401234633096, 0.20191527290684846),
-    (0.7469970009503477, 0.20316031609079727),
-    (0.7500434807854778, 0.20391057268140328),
-    (0.7531795629687, 0.20416215561354206),
-    (0.9185864093019299, 0.20416215561354206),
-    (0.9213309248495607, 0.2096438416071082),
-    (0.9240983113600885, 0.21449114855650264),
-    (0.9268885688335132, 0.21865434960366537),
-    (0.9297016972698348, 0.22209582167109464),
-    (0.9325605676319503, 0.22480970979773496),
-    (0.9354651799198596, 0.22676595163237234),
-    (0.9384384050964597, 0.2279533761144198),
-    (0.9414573721988535, 0.22834847193959784),
-    (1.0, 0.22834847193959784),
-    (1.1099886913655106, 0.22834847193959784),
-    (1.1168787026741451, 0.2538347487518584),
-    (1.1306587252914142, 0.30541809576153445),
-    (1.144438747908683, 0.3577434904844825),
-    (1.1582187705259521, 0.41073672590994126),
-    (1.1788888044518555, 0.49134440207063745),
-    (1.1995588383777591, 0.573141728721227),
-    (1.2340088949209316, 0.7117458228533513),
-    (1.2753489627727383, 0.8812349685007477),
-    (1.3304690532418142, 1.1115937204565158),
-    (1.4062591776367936, 1.43480382544928),
-    (1.509609347266311, 1.8847703095863748),
-    (1.5853994716612905, 2.2199965883279056),
-    (1.6749696186735388, 2.6207186070952035),
-    (1.792099810920325, 3.1507658632937945),
-    (1.943680059710284, 3.8447414237834288),
-    (2.0, 4.104493885791202),
-    (2.1503803989693187, 4.80224901460087),
-    (2.4466508852406017, 6.191140686600411),
-    (2.894501620301843, 8.315964343499907),
-    (3.617952807708465, 11.78910827317095),
-    (4.0, 13.636725832047457),
-    (4.954615001583555, 18.279866505401003),
-    (8.0, 33.228577867627834),
+    (0.5, 0.16858325947959152),
+    (0.7395739535337403, 0.16858325947959157),
+    (0.7439540566683787, 0.17062139780953978),
+    (0.7485587804765881, 0.17241238702525247),
+    (0.7584893786765777, 0.17521232118440244),
+    (0.7694708338289472, 0.17693319658251927),
+    (0.7816082316289344, 0.1775277872935283),
+    (1.0, 0.1775277872935283),
+    (1.0948007954786751, 0.1775277872935283),
+    (1.0994723734459284, 0.18011048951695485),
+    (1.1043835195140665, 0.1823937318717047),
+    (1.1095468425305044, 0.18435489637128993),
+    (1.1149749513426572, 0.18597662034279455),
+    (1.1204040824937895, 0.18719377975680107),
+    (1.1261116306270311, 0.18808305747656295),
+    (1.1321122492677562, 0.1886309316382227),
+    (1.138420591941339, 0.18881896732707976),
+    (1.4615579518913686, 0.18881896732707998),
+    (1.4664823184378306, 0.19228618656040147),
+    (1.4716592166020597, 0.19539469445475827),
+    (1.476836114766289, 0.19797628445767618),
+    (1.4822784948876582, 0.20015479150250742),
+    (1.4880014073605734, 0.20189503283240617),
+    (1.4940178025244073, 0.2031642689686443),
+    (1.5000341976882412, 0.20390627123306798),
+    (1.5063591259374, 0.20416215561354206),
+    (1.8371728186038598, 0.20416215561354206),
+    (1.842747615809985, 0.2097242631326775),
+    (1.8483224130161102, 0.2145931002753253),
+    (1.8538972102222353, 0.21873576631383052),
+    (1.8594720074283604, 0.22213306852233794),
+    (1.8651861745646388, 0.22483605393999861),
+    (1.870900341700917, 0.22675788850223744),
+    (1.8769075430493118, 0.22795742316333567),
+    (1.882914744397707, 0.22834847193959795),
+    (2.0, 0.22834847193959795),
+    (2.219977382731021, 0.22834847193959795),
+    (2.251892632001586, 0.2876903078895028),
+    (2.2950720868970564, 0.3695988320542998),
+    (2.3558779376314987, 0.48761302840664067),
+    (2.394848960147664, 0.5646447027213757),
+    (2.4424802098896436, 0.6600666535000439),
+    (2.501617289420396, 0.7802414213845239),
+    (2.573895942180205, 0.929326587944189),
+    (2.6697199136420724, 1.1301300571295352),
+    (2.792922162664474, 1.3926573219645837),
+    (2.9532371879355983, 1.7401456911016115),
+    (3.170133986831826, 2.2185177560990974),
+    (3.4917070669344934, 2.940759948762798),
+    (4.0, 4.104493885791202),
+    (4.474375, 5.207439699344311),
+    (5.15, 6.797441142083269),
+    (6.21875, 9.343231904326906),
+    (8.0, 13.636725832047457),
 )
 
 _LOBE_SCAN_STEP = 0.005
@@ -225,7 +233,7 @@ def process(x: float, g: float = G_DEFAULT, cells: int = N_CELLS) -> float:
     """y = C applied `cells` times to g*x. Default cells is 6, default g is 1.
 
     x is cell-input volts when g is 1. The acceptance curve is this map.
-    Plugin audio uses audio_map: v = 5 * d(g) * a, then OUTPUT_GAIN * P(1) / P(g).
+    Plugin audio uses audio_map: v = 2.5 * d(g) * a, then OUTPUT_GAIN * P(1) / P(g).
     """
     if cells < 0:
         raise ValueError(f"cells must be non-negative, got {cells}")
@@ -275,15 +283,35 @@ def output_scale(g: float) -> float:
     return OUTPUT_GAIN * drive_peak(G_DEFAULT) / drive_peak(g)
 
 
-def audio_map(sample: float, g: float = G_DEFAULT) -> float:
+def symmetry_clamp(s: float) -> float:
+    """Offset on [SYM_MIN, SYM_MAX]. A non-finite value reads as 0."""
+    if not math.isfinite(s):
+        return SYM_DEFAULT
+    if s < SYM_MIN:
+        return SYM_MIN
+    if s > SYM_MAX:
+        return SYM_MAX
+    return s
+
+
+def symmetry_bias(s: float) -> float:
+    """C^6(s), the static cell output of the IN 2 voltage alone."""
+    return process(symmetry_clamp(s))
+
+
+def audio_map(sample: float, g: float = G_DEFAULT, symmetry: float = SYM_DEFAULT) -> float:
     """One sample before oversampling and before the DC block.
 
-    v = 5 * d(g) * sample, y = C^6(v), u = output_scale(g) * y.
+    v = 2.5 * d(g) * sample, s = clamp(symmetry).
+    s is the DC voltage on IN 2 that the knob stands in for.
+    y = C^6(v + s) - C^6(s), u = output_scale(g) * y.
+    The default symmetry is 0, where C^6(0) is 0.
     """
     if not math.isfinite(sample):
         raise ValueError(f"sample must be finite, got {sample}")
     volts = AUDIO_FULL_SCALE_VOLTS * drive_scale(g) * sample
-    return output_scale(g) * process(volts)
+    s = symmetry_clamp(symmetry)
+    return output_scale(g) * (process(volts + s) - symmetry_bias(s))
 
 
 def _golden_max_abs(lo: float, hi: float) -> tuple[float, float]:
@@ -350,6 +378,94 @@ def max_abs_process(limit: float) -> float:
     if end > best:
         return end
     return best
+
+
+def _plateau_exit(v_lobe: float, peak: float, v_max: float) -> float | None:
+    """First v past a lobe where |C^6(v)| reaches that lobe's height again."""
+    step = 2e-3
+    v = v_lobe
+    previous = abs(process(v))
+    while v < v_max - 1e-15:
+        nxt = min(v_max, v + step)
+        current = abs(process(nxt))
+        if previous < peak <= current:
+            lo, hi = v, nxt
+            for _ in range(60):
+                mid = 0.5 * (lo + hi)
+                if abs(process(mid)) >= peak:
+                    hi = mid
+                else:
+                    lo = mid
+            return hi
+        v, previous = nxt, current
+    return None
+
+
+def _chord_worst(g0: float, g1: float, full_scale: float, samples: int) -> tuple[float, float]:
+    """Max |P/P_hat - 1| on the open chord from g0 to g1, and the g where it sits."""
+    p0 = max_abs_process(full_scale * g0)
+    p1 = max_abs_process(full_scale * g1)
+    worst = 0.0
+    where = g0
+    for step in range(1, samples):
+        t = step / samples
+        g = g0 + (g1 - g0) * t
+        hat = p0 + t * (p1 - p0)
+        measured = max_abs_process(full_scale * g)
+        rel = abs(measured / hat - 1.0) if hat != 0.0 else abs(measured)
+        if rel > worst:
+            worst = rel
+            where = g
+    return worst, where
+
+
+def build_drive_peaks(
+    full_scale: float = AUDIO_FULL_SCALE_VOLTS,
+    tol: float = DRIVE_PEAK_REL_ERROR,
+    samples: int = 80,
+) -> tuple[tuple[float, float], ...]:
+    """Knots of P(g) = max |C^6| on |v| <= full_scale * d(g), g in [G_MIN, G_MAX].
+
+    Anchors are the endpoints, g = 1, 2, and 4, each interior lobe that the
+    drive reaches, and the later voltage where |C^6| climbs back to that lobe.
+    Any span whose linear chord exceeds `tol` on `samples` interior points is
+    split at the worst of those points, and the two sides are checked again.
+    DRIVE_PEAKS is this function at AUDIO_FULL_SCALE_VOLTS, pasted so import
+    does not rescan.
+    """
+    if not math.isfinite(full_scale) or full_scale <= 0.0:
+        raise ValueError(f"full_scale must be finite and positive, got {full_scale}")
+    v_max = full_scale * G_MAX
+    anchors = {G_MIN, G_MAX, G_DEFAULT, 2.0, 4.0}
+    for v_lobe, peak in positive_lobe_peaks(v_max):
+        g_lobe = v_lobe / full_scale
+        if G_MIN < g_lobe < G_MAX:
+            anchors.add(g_lobe)
+        exit_v = _plateau_exit(v_lobe, peak, v_max)
+        if exit_v is None:
+            continue
+        g_exit = exit_v / full_scale
+        if G_MIN < g_exit < G_MAX:
+            anchors.add(g_exit)
+    ordered = sorted(anchors)
+    extra: list[float] = []
+
+    def fill(g0: float, g1: float) -> None:
+        if g1 - g0 <= 1e-12:
+            return
+        err, where = _chord_worst(g0, g1, full_scale, samples)
+        if err <= tol:
+            return
+        if where <= g0 or where >= g1:
+            where = 0.5 * (g0 + g1)
+        fill(g0, where)
+        extra.append(where)
+        fill(where, g1)
+
+    for left, right in zip(ordered, ordered[1:]):
+        fill(left, right)
+    gs = sorted(set(ordered).union(extra))
+    return tuple((g, max_abs_process(full_scale * g)) for g in gs)
 
 
 def dc_block_pole(sample_rate: float) -> float:

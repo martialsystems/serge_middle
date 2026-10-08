@@ -14,8 +14,8 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
   // octave of g takes the same knob travel.
   GetParam(kFold)->InitDouble("Fold", serge::kGDefault, serge::kGMin, serge::kGMax, 0.001, "",
                               0, "", IParam::ShapeExp());
-  // s, a DC offset in cell-input volts. Linear: knob travel matches volts.
-  GetParam(kSymmetry)->InitDouble("Symmetry", serge::kSymDefault, serge::kSymMin, serge::kSymMax, 0.01, "V");
+  // s is the DC voltage on IN 2 that this knob stands in for. Linear: knob travel matches volts.
+  GetParam(kIn2)->InitDouble("IN 2 DC", serge::kSymDefault, serge::kSymMin, serge::kSymMax, 0.01, "V");
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -38,13 +38,13 @@ SergeMiddle::SergeMiddle(const InstanceInfo& info)
         0, false, false, kNoParameter, true));
     pGraphics->AttachControl(new pleat::PleatCables(bounds));
     pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds, pleat::kFoldX), kFold, knob));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds, pleat::kSymX), kSymmetry, knob));
+    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(bounds, pleat::kSymX), kIn2, knob));
 
     const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
     // GetDisplay of each knob. The same IParam::Value is the smoother target in ProcessBlock.
     pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bounds, pleat::kFoldX), kFold, valueText,
                                                  COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bounds, pleat::kSymX), kSymmetry, valueText,
+    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bounds, pleat::kSymX), kIn2, valueText,
                                                  COLOR_TRANSPARENT, false));
   };
 #endif
@@ -56,7 +56,7 @@ void SergeMiddle::OnReset()
   const double fs = GetSampleRate();
   // Each smoother state starts at the current target, not at 0.
   mFold.Reset(GetParam(kFold)->Value(), fs);
-  mSymmetry.Reset(GetParam(kSymmetry)->Value(), fs);
+  mSymmetry.Reset(GetParam(kIn2)->Value(), fs);
   for (auto& channel : mChannels)
     channel.Reset(fs);
 }
@@ -64,7 +64,7 @@ void SergeMiddle::OnReset()
 void SergeMiddle::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   const double target = GetParam(kFold)->Value();
-  const double symmetry = GetParam(kSymmetry)->Value();
+  const double symmetry = GetParam(kIn2)->Value();
   const int nChans = std::min(NOutChansConnected(), kMaxChannels);
 
   for (int s = 0; s < nFrames; s++)

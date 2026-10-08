@@ -2,7 +2,7 @@
 
 PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. The panels sit side by side later.
 
-PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own state. Its AC jack is `AC = 2.5 - OUT`, and `SlopeAC/` is that half as a VST3. Rise and Fall default to 5 ms, and the host sample is AC / 2.5. The later slope panel mark is a rise and a fall, one peak.
+PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own state. Its AC jack is `AC = 2.5 - OUT`, and `SlopeAC/` is that half as a VST3. Rise and Fall default to 5 ms. Cycle defaults to off, and the host sample is the coupled AC / 2.5. The later slope panel mark is a rise and a fall, one peak.
 
 The PLEAT map is six identical cells in series:
 
@@ -37,36 +37,38 @@ The one-sided limits at the origin have magnitude 1.660024e-04 V, which is 2 eta
 
 g is the fold amount into the first cell. On the knob it runs from 0.5 to 8, default 1. In the plugin it is smoothed. This tree applies a constant g. The acceptance curve uses g = 1 and cell-input volts, before the drive map below.
 
-An audio sample `a` is in [-1, 1]. The cell drive and the output bound are:
+Serge level: a host sample `a` in [-1, 1] is ±2.5 V, the black-jack range in the Serge La Bestia 3 manual, page 6. The cell drive and the output bound are:
 
 ```text
 d(g) = g
-v = 5 * d(g) * a
+v = 2.5 * d(g) * a
 y = C(C(C(C(C(C(v))))))
-u = 4.379272 * (P(1) / P(g)) * y
+u = 5.632921 * (P(1) / P(g)) * y
 ```
 
-With d(g) = g, the drive line is v = g * 5 * a. `v` and `y` are in volts. `u` is the sample before the DC block. P(g) is the peak of |y| on |v| <= 5 d(g). The fixed factor 4.379272 is OUTPUT_GAIN, the reciprocal of the g = 1 raw peak. At each stored knot, for |a| <= 1, the ratio P(1) / P(g) holds the peak of |u| at 1.
+With d(g) = g, the drive line is v = 2.5 * g * a. `v` and `y` are in volts. `u` is the sample before the output DC block. P(g) is the peak of |y| on |v| <= 2.5 d(g). The fixed factor 5.632921 is OUTPUT_GAIN, the reciprocal of the g = 1 raw peak. At each stored knot, for |a| <= 1, the ratio P(1) / P(g) holds the peak of |u| at 1.
 
 The acceptance curve is `y` against cell-input volts on [-6, 6] at g = 1, before OUTPUT_GAIN, before P(1) / P(g), before the smoother, and before the DC block.
 
-On |v| <= 5 the raw map peaks at v = 4.707287 V, y = -0.228348 V. A full-scale sine at g = 1 therefore peaks at 1 after OUTPUT_GAIN and before the DC block. Its mean is below 1e-9.
+On |v| <= 2.5 the raw map peaks at v = 1.954021 V, y = 0.177528 V. A full-scale sine at g = 1 therefore peaks at 1 after OUTPUT_GAIN and before the DC block. Its mean is below 1e-9.
 
-Once the drive covers that peak (g = 0.941457), the raw peak stays 0.228348 through g = 1.109989. Past that drive the peak is the endpoint, and |y| is still climbing at 40 V.
+Once the drive covers that peak (g = 0.781608), the raw peak stays 0.177528 through g = 1.094801. Past that drive the next interior lobes are taller. The endpoint becomes the running maximum after g = 2.219977, and |y| is still climbing at 20 V.
 
 Measured raw peaks at d(g) = g:
 
 | g | full-scale drive (V) | raw peak (V) | level vs g = 1 (dB) |
 | --- | --- | --- | --- |
-| 0.5 | 2.5 | 0.177528 | -2.187 |
-| 1 | 5 | 0.228348 | 0 |
-| 2 | 10 | 4.104494 | 25.093 |
-| 4 | 20 | 13.636726 | 35.522 |
-| 8 | 40 | 33.228578 | 43.258 |
+| 0.5 | 1.25 | 0.168583 | -0.449 |
+| 1 | 2.5 | 0.177528 | 0 |
+| 2 | 5 | 0.228348 | 2.187 |
+| 4 | 10 | 4.104494 | 27.280 |
+| 8 | 20 | 13.636726 | 37.709 |
 
-At g = 2 the raw peak is 25.093 dB above the g = 1 peak. P(1) / P(g) returns that peak to 1. The knots in `DRIVE_PEAKS` are the stored curve. Between them, linear interpolation in g keeps |P / P_hat - 1| within 0.001.
+At g = 2 the raw peak is 2.187 dB above the g = 1 peak, so P(1) / P(g) applies -2.187 dB. At g = 4 it applies -27.280 dB. At g = 8 it applies -37.709 dB. The knots in `DRIVE_PEAKS` are `build_drive_peaks` in `wave_middle.py`: anchors at 0.5, 1, 2, 4, and 8, each interior lobe the drive reaches, and the voltage where |C^6| climbs back to that lobe. Any chord whose relative error on 80 interior samples exceeds 0.001 is split at its worst sample. Between the stored knots, linear interpolation in g keeps |P / P_hat - 1| within 0.001.
 
-If full scale is 1 V, the same sine peaks at 0.161174 V and reaches only the first fold.
+A 1 V sine peaks at 0.161174 V on the raw map and reaches only the first fold. On this Serge level that sine is 0.4 of host full scale.
+
+Projects saved before this Serge level change fold about half as hard at the same Fold setting. The same knob value now drives the cells with half the voltage, and Fold 2 matches the old Fold 1.
 
 ## Smoother
 
@@ -108,7 +110,7 @@ y[n] = x[n] - x[n-1] + r * y[n-1]
 
 The state starts at x[-1] = 0 and y[-1] = 0.
 
-At fs = 48000, a 4,096-point full-scale sine at g = 1 with one cycle in the buffer has its fundamental at 11.71875 Hz. After one lead-in period from zero state, the next 4,096 samples have peak ratio 1.152747 and a maximum absolute deviation of 0.390095 times the pre-block peak. The same length with 86 cycles, at 1,007.8125 Hz, stays within 0.005 on both the peak ratio and that deviation.
+At fs = 48000, a 4,096-point full-scale sine at g = 1 with one cycle in the buffer has its fundamental at 11.71875 Hz. After one lead-in period from zero state, the next 4,096 samples have peak ratio 1.109037 and a maximum absolute deviation of 0.310004 times the pre-block peak. The same length with 86 cycles, at 1,007.8125 Hz, stays within 0.005 on both the peak ratio and that deviation.
 
 A pure sine at 11.71875 Hz has steady-state magnitude 0.761185, which reads 0.761 to three decimals. At 40 Hz the magnitude is 0.970778 (0.971). At 100 Hz it is 0.995689 (0.996). The folded buffer is a different measurement. The cutoff stays at 10 Hz.
 
@@ -118,9 +120,9 @@ The acceptance curve does not go through this block.
 
 The VST3 is `SergeMiddle/`, an iPlug2 effect. JUCE is not the framework for this repository. The processing contract is `IPLUG2.md`. The macOS build uses Unix Makefiles.
 
-Symmetry is the offset s in cell-input volts. The range is -2.5 V to +2.5 V and the default is 0. It is smoothed with the same 20 ms one-pole. The smoothed s is added at the 4× rate, after the upsampler and before the six cells, and the static output of s alone is subtracted: y = C^6(v + s) - C^6(s), where v is the upsampled drive. A silent input therefore stays silent while s moves. The same s is held across the four phases. The acceptance curve stays s = 0, where C^6(0) = 0. With a nonzero s the pre-DC peak can exceed 1, and the path does not clip that peak. The 10 Hz block stays on the output and removes the signal-dependent DC that remains.
+IN 2 is the DC voltage s on the DC-coupled second input. The original middle-section panel is VC, one knob, OUT, IN 2, and IN 1, and the VCM kit sheet says IN 1 is coupled for AC only and IN 2 is coupled for DC. The range is -2.5 V to +2.5 V and the default is 0. It is smoothed with the same 20 ms one-pole. The host audio on IN 1 passes the same 10 Hz block before the drive. The smoothed s is added at the 4× rate, after the upsampler and before the six cells, and the static output of s alone is subtracted: y = C^6(v + s) - C^6(s), where v is the upsampled drive. That subtraction holds a silent input at exactly 0, in the role of the trimmed CV rejection. On the hardware the AC-coupled output would instead show a decaying transient when the IN 2 voltage jumps (Serge La Bestia 3, page 20: MID OUT is AC coupled). The same s is held across the four phases. The acceptance curve stays s = 0, where C^6(0) = 0. With a nonzero s the pre-DC peak can exceed 1, and the path does not clip that peak. The 10 Hz block on the output removes the signal-dependent DC that remains.
 
-The processing order is: smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With Symmetry the order is: smooth g, smooth s, v = 5 * g * a, 4× upsample, add s, six cells, subtract C^6(s), 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = g * 5 * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`. The second half's VST3 is `SlopeAC/`.
+The processing order is: IN 1 block, smooth g, smooth s, v = 2.5 * g * a, 4× upsample, add s, six cells, subtract C^6(s), 63-tap halfband, decimate, OUTPUT_GAIN, P(1) / P(g), 10 Hz block. With d(g) = g, the drive line is v = 2.5 * g * a. The acceptance curve is the static map in cell-input volts, before that gain, before the ratio, before the smoother, and before the DC block. The module adds no envelope, no oscillator, and no further filter. This VST3 is the PLEAT panel. The slope generator is the panel in `slope/`. The second half's VST3 is `SlopeAC/`.
 
 ## Curve at g = 1
 
@@ -162,8 +164,11 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `wave_middle.py` | Cell, six-cell map, fold-amount bound, smoother, decimator, DC block, curve renderer |
 | `halfband_taps.csv` | 63-tap decimator, sum 1 |
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
-| `SergeMiddle/` | iPlug2 VST3: Fold and Symmetry knobs, the port of `wave_middle.py` |
-| `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, output AC / 2.5 |
+| `SergeMiddle/` | iPlug2 VST3: Fold and IN 2 DC knobs, the port of `wave_middle.py` |
+| `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, Cycle, coupled AC / 2.5 |
+| `tests/test_symmetry.py` | IN 2 voltage on `audio_map`, default bit match, cross-language anchor |
+| `tests/test_slope_editor.py` | Slope AC window, Cycle in ProcessBlock, plate and switch art |
+| `tools/art/` | Panel art generator (SVG and PNG) |
 | `IPLUG2.md` | Processing order and exclusions |
 | `BUILD.md` | Copied constants, build command, project name, window size |
 | `MATH.md` | Derivation of the locked map |

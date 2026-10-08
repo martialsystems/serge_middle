@@ -35,7 +35,7 @@ The tests use the standard library. They do not import SciPy. SciPy 1.13.1 was u
 ## Copy verbatim
 
 - VT = 0.02585, Is = 2.52e-9, eta = 1.68, R = 33000
-- `OUTPUT_GAIN` = 4.3792716960440945 and the 53 `DRIVE_PEAKS` knots
+- `OUTPUT_GAIN` = 5.632920993639031 and the 54 `DRIVE_PEAKS` knots. Serge level: host ±1 is ±2.5 V. This gain replaces 4.3792716960440945, which was the ±5 V drive.
 - `lambert_w0_kexp`: Halley on w + ln(w) - ln(z) = 0, never k * exp(|v| / (eta * VT))
 - Smoother: c = exp(-1 / (0.020 * fs)), once per audio sample, state starts at the clamped target, held across the four phases
 - `halfband_taps.csv` and `upsample_taps.csv`, including the factor of 4 between them
@@ -76,7 +76,7 @@ ctest --test-dir build/dsp-tests --output-on-failure
 
 ## Choices
 
-Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, two knobs (Fold and Symmetry). Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it. The plate and knob art is `pleat_plate.svg` and `pleat_knob.svg`, rasterized to the PNGs.
+Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, two knobs (Fold and IN 2 DC). Format: VST3, via Unix Makefiles. The APP target's MainMenu xib is an ibtool compile, and this build does not run it. The plate and knob art is `pleat_plate.svg` and `pleat_knob.svg`, rasterized to the PNGs.
 
 ## Checks
 

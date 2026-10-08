@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
-The gray 300 by 300 window is gone. Fold and Symmetry are the parameters
+The gray 300 by 300 window is gone. Fold and IN 2 DC are the parameters
 the audio path reads. The plate PNGs are prototype art for the host test.
 """
 
@@ -40,12 +40,14 @@ class PleatEditorTest(unittest.TestCase):
         start = source.index("void SergeMiddle::ProcessBlock")
         body = source[start:]
         self.assertIn("GetParam(kFold)->Value()", body)
-        self.assertIn("GetParam(kSymmetry)->Value()", body)
+        self.assertIn("GetParam(kIn2)->Value()", body)
         self.assertIn("mFold.Step(", body)
         self.assertIn("mSymmetry.Step(", body)
         self.assertIn("mChannels[c].Step(inputs[c][s], g, offset)", body)
-        for token in ("Pleat", "cable", "Jack", "IN 2", "COLOR_GRAY", "IVKnobControl", "AttachCornerResizer", "Serge Middle"):
+        for token in ("Pleat", "cable", "Jack", "COLOR_GRAY", "IVKnobControl", "AttachCornerResizer", "Serge Middle"):
             self.assertNotIn(token, body)
+        self.assertIn('InitDouble("IN 2 DC"', source)
+        self.assertIn("kIn2 = 1", (PLUGIN / "SergeMiddle.h").read_text(encoding="utf-8"))
         self.assertNotIn("COLOR_GRAY", source)
         self.assertNotIn("IVKnobControl", source)
         self.assertNotIn("AttachCornerResizer", source)

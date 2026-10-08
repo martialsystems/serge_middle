@@ -22,19 +22,19 @@ Positive fold roots, first root of each cluster, four decimals: 0.7272, 1.5548, 
 
 ## Level
 
-`OUTPUT_GAIN` = 4.3792716960440945, which prints 4.379272 to six decimals.
+Serge level: host ±1 is ±2.5 V. `OUTPUT_GAIN` = 5.632920993639031, which prints 5.632921 to six decimals. The previous gain, at host ±1 = ±5 V, was 4.3792716960440945.
 
 Raw peaks of |C^6| at d(g) = g. The six-decimal column is the README figure.
 
 | g | raw peak (V) | six decimals | dB vs g = 1 |
 | --- | --- | --- | --- |
-| 0.5 | 0.1775277872935283 | 0.177528 | -2.187 |
-| 1 | 0.22834847193959784 | 0.228348 | 0 |
-| 2 | 4.104493885791202 | 4.104494 | 25.093 |
-| 4 | 13.636725832047457 | 13.636726 | 35.522 |
-| 8 | 33.228577867627834 | 33.228578 | 43.258 |
+| 0.5 | 0.16858325947959152 | 0.168583 | -0.449 |
+| 1 | 0.1775277872935283 | 0.177528 | 0 |
+| 2 | 0.22834847193959795 | 0.228348 | 2.187 |
+| 4 | 4.104493885791202 | 4.104494 | 27.280 |
+| 8 | 13.636725832047457 | 13.636726 | 37.709 |
 
-The g = 1 peak is the lobe at 4.7072868603604885 V. The plateau of that peak runs from g = 0.941457 through g = 1.109989.
+The g = 1 peak is the lobe at 1.9540205790723362 V, and that lobe is positive. The plateau of that peak runs from g = 0.781608 through g = 1.094801. The endpoint becomes the running maximum after g = 2.219977. `DRIVE_PEAKS` has 54 knots. P(1) / P(g) applies -2.187 dB at g = 2, -27.280 dB at g = 4, and -37.709 dB at g = 8.
 
 ## DC block
 
@@ -44,7 +44,7 @@ Folded `audio_map` buffer, 4,096 samples, one lead-in period:
 
 | cycles | frequency (Hz) | peak ratio | deviation / peak |
 | --- | --- | --- | --- |
-| 1 | 11.71875 | 1.152747 | 0.390095 |
+| 1 | 11.71875 | 1.109037 | 0.310004 |
 | 86 | 1,007.8125 | within 0.005 of 1 | within 0.005 |
 
 Pure-sine steady-state magnitude of the same one-pole:
@@ -61,11 +61,13 @@ c at 48 kHz = 0.9989588756797245.
 
 A step from 1 to 2, after 960 samples: 1 + (1 - exp(-1)) = 1.6321205588285577, which prints 1.632121. Tolerance 1e-4.
 
-## Symmetry
+## IN 2
 
-s is a DC offset in cell-input volts, added after the upsampler and before the six cells. C^6(s) is subtracted after the cells, so a silent input gives exactly 0 at any s. The range is -2.5 V to +2.5 V. The default is 0. The smoother uses the same c as Fold. At 48 kHz, c = 0.9989588756797245.
+s is the DC voltage on IN 2, in cell-input volts, added after the upsampler and before the six cells. The reference names stay `symmetry_clamp` and `symmetry_bias`. C^6(s) is subtracted after the cells, so a silent input gives exactly 0 at any s. The range is -2.5 V to +2.5 V. The default is 0. The smoother uses the same c as Fold. At 48 kHz, c = 0.9989588756797245.
 
-A 0.5 amplitude sine, 86 cycles in 4,096 samples, g = 1, s = +1 V, measured on the pre-DC output after one lead-in window: |H2| / |H1| = 0.714834.
+A 0.5 amplitude sine, 86 cycles in 4,096 samples, g = 1, s = +1 V, on `audio_map`: |H2| / |H1| = 0.245789. The plugin path, `StepPreDc` after one second of IN 1 settling, measures 0.242482 on that probe.
+
+`audio_map(0.1, 1.0, 1.0)` = 0.0304476745327936. That is 15 significant digits of `output_scale(1) * (process(1.25) - process(1.0))`. The C++ `AudioMap` matches it within 1e-12 relative.
 
 ## Halfband
 

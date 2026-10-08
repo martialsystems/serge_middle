@@ -6,6 +6,7 @@
 //   ctest --test-dir build/dsp-tests --output-on-failure
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -108,7 +109,7 @@ void TestAcceptanceCurve()
 void TestLevels()
 {
   const double peakY = serge::Process(serge::kFullScalePeakVin);
-  Check(std::fabs(serge::kOutputGain * std::fabs(peakY) - 1.0) < 1e-12, "OUTPUT_GAIN * |y(4.707287 V)| = 1",
+  Check(std::fabs(serge::kOutputGain * std::fabs(peakY) - 1.0) < 1e-12, "OUTPUT_GAIN * |y(1.954021 V)| = 1",
         serge::kOutputGain * std::fabs(peakY), 1.0);
 
   // Peak of |audio_map| over a in [-1, 1], at g = 1, a knot (2), and between knots.
@@ -124,7 +125,7 @@ void TestLevels()
     Check(std::fabs(peak - 1.0) <= 1e-3, what, peak, 1.0);
   }
 
-  Check(std::fabs(serge::DrivePeak(2.0) - 4.104493885791202) == 0.0, "P(2) is the stored knot");
+  Check(std::fabs(serge::DrivePeak(2.0) - 0.22834847193959795) == 0.0, "P(2) is the stored knot");
   Check(serge::DrivePeak(100.0) == serge::kDrivePeakP[serge::kDrivePeakCount - 1], "g above 8 clamps");
   Check(serge::DrivePeak(0.1) == serge::kDrivePeakP[0], "g below 0.5 clamps");
 }
@@ -192,6 +193,7 @@ void TestDecimator()
   serge::WaveMiddleChannel ch;
   ch.Reset(fs);
   ch.SetCellsBypassed(true);
+  ch.SetInputBlockBypassed(true);
   const double scale = serge::kAudioFullScaleVolts * serge::OutputScale(1.0);
   std::vector<double> out;
   for (int i = 0; i < nLow; i++)
@@ -223,9 +225,9 @@ void TestDcBlock()
     outPeak = std::fmax(outPeak, std::fabs(y));
     dev = std::fmax(dev, std::fabs(y - src[i]));
   }
-  Check(std::fabs(outPeak / peak - 1.152747) < 5e-7, "11.71875 Hz folded buffer peak ratio 1.152747", outPeak / peak,
-        1.152747);
-  Check(std::fabs(dev / peak - 0.390095) < 5e-7, "11.71875 Hz deviation 0.390095", dev / peak, 0.390095);
+  Check(std::fabs(outPeak / peak - 1.109037) < 5e-7, "11.71875 Hz folded buffer peak ratio 1.109037", outPeak / peak,
+        1.109037);
+  Check(std::fabs(dev / peak - 0.310004) < 5e-7, "11.71875 Hz deviation 0.310004", dev / peak, 0.310004);
 }
 
 void TestSinePeaks()
@@ -241,6 +243,8 @@ void TestSinePeaks()
   {
     serge::WaveMiddleChannel ch;
     ch.Reset(fs);
+    // The level law is the cell drive. The IN 1 block is measured on the triangle.
+    ch.SetInputBlockBypassed(true);
     double peak = 0.0;
     for (int i = 0; i < n; i++)
     {
@@ -281,8 +285,9 @@ bool SameBits(double a, double b)
   return std::memcmp(&a, &b, sizeof(double)) == 0;
 }
 
-// Pre-change channel: upsampler, six cells, decimator, OUTPUT_GAIN, DC block.
-// No symmetry offset. The bit-identity check compares against this copy.
+// Legacy structure: upsampler, six cells, decimator, OUTPUT_GAIN, output DC block.
+// No IN 1 block and no offset. The bit-identity check feeds it the blocked input
+// and the Serge-level drive constants.
 class LegacyChannel
 {
 public:
@@ -344,23 +349,25 @@ struct EvenBins
   double h4;
 };
 
-// 4,096 samples at 48 kHz, 86 cycles, amplitude 0.5, g = 1. One lead-in window, then the measurement.
-// The turn count is reduced before the 2 pi scale. Sample i and sample i + n then share one angle,
-// and even bins of the odd map sit at roundoff. An unreduced angle is not an exact bin at 1e-9.
+// 4,096 samples at 48 kHz, 86 cycles, amplitude 0.5, g = 1.
+// One second of lead-in lets the IN 1 block settle, then the measurement window.
+// The turn count is reduced before the 2 pi scale. A window of n samples holds 86
+// cycles from any start, and even bins of the odd map sit at roundoff.
 EvenBins MeasureEvenBins(double offset)
 {
   constexpr int n = 4096;
   constexpr double fs = 48000.0;
+  constexpr int lead = 48000;
   serge::WaveMiddleChannel channel;
   channel.Reset(fs);
   std::vector<double> y(static_cast<size_t>(n));
-  for (int i = 0; i < 2 * n; i++)
+  for (int i = 0; i < lead + n; i++)
   {
     const double turns = static_cast<double>((86 * i) % n) / static_cast<double>(n);
     const double a = 0.5 * std::sin(2.0 * serge::kPi * turns);
     const double sample = channel.StepPreDc(a, 1.0, offset);
-    if (i >= n)
-      y[static_cast<size_t>(i - n)] = sample;
+    if (i >= lead)
+      y[static_cast<size_t>(i - lead)] = sample;
   }
   EvenBins out;
   out.h1 = BinMagnitude(y, 86);
@@ -369,18 +376,59 @@ EvenBins MeasureEvenBins(double offset)
   return out;
 }
 
+double TriangleEvenRatio(bool bypassInput)
+{
+  constexpr double fs = 48000.0;
+  constexpr int period = 240;
+  constexpr int settle = 24000;
+  constexpr int meas = 4800;
+  serge::WaveMiddleChannel channel;
+  channel.Reset(fs);
+  channel.SetInputBlockBypassed(bypassInput);
+  std::vector<double> y(static_cast<size_t>(meas));
+  for (int i = 0; i < settle + meas; i++)
+  {
+    const double phase = static_cast<double>(i % period) / static_cast<double>(period);
+    const double tri = phase < 0.5 ? 2.0 * phase : 2.0 * (1.0 - phase);
+    const double sample = channel.StepPreDc(tri, 2.0, 0.0);
+    if (i >= settle)
+      y[static_cast<size_t>(i - settle)] = sample;
+  }
+  const int fundamental = meas / period;
+  const double h1 = BinMagnitude(y, fundamental);
+  const double h2 = BinMagnitude(y, 2 * fundamental);
+  return h2 / h1;
+}
+
+void TestInputCoupling()
+{
+  const double coupled = TriangleEvenRatio(false);
+  const double bypassed = TriangleEvenRatio(true);
+  std::printf("triangle |H2|/|H1| coupled %.6e bypassed %.6e\n", coupled, bypassed);
+  Check(coupled < 1e-3, "IN 1 block: 200 Hz triangle |H2|/|H1| below 1e-3", coupled, 0.0);
+  Check(bypassed > 0.1, "input block bypassed: 200 Hz triangle |H2|/|H1| stays large", bypassed, 0.1);
+}
+
 void TestSymmetry()
 {
   const double fs = 48000.0;
-  constexpr int n = 8192;
+  constexpr int n = 16384;
 
   Check(serge::Cell(-0.0) == 0.0 && serge::Cell(0.0) == 0.0, "Cell of both zeros is 0");
   Check(serge::AudioMap(0.25, 2.0) == serge::AudioMap(0.25, 2.0, 0.0), "AudioMap default offset matches 0");
   Check(serge::AudioMap(0.0, 1.0) == serge::AudioMap(0.0, 1.0, 0.0), "AudioMap at 0 matches offset 0");
   Check(serge::AudioMap(-0.0, 1.0) == serge::AudioMap(-0.0, 1.0, 0.0), "AudioMap at -0 matches offset 0");
   Check(serge::AudioMap(0.0, 1.0, 1.0) == 0.0, "AudioMap at a = 0 is 0 at any offset");
-  Check(serge::AudioMap(0.1, 1.0, 1.0) == serge::OutputScale(1.0) * (serge::Process(1.5) - serge::Process(1.0)),
-        "AudioMap adds the offset in cell-input volts and subtracts C^6(s)");
+  Check(serge::kAudioFullScaleVolts * 0.1 == 0.25, "0.1 of full scale is 0.25 V");
+  Check(serge::AudioMap(0.1, 1.0, 1.0) == serge::OutputScale(1.0) * (serge::Process(1.25) - serge::Process(1.0)),
+        "AudioMap adds the IN 2 voltage in cell-input volts and subtracts C^6(s)");
+  {
+    // 15 significant digits of audio_map(0.1, 1.0, 1.0), recorded in GOLDEN.md.
+    const double anchor = 0.0304476745327936;
+    const double got = serge::AudioMap(0.1, 1.0, 1.0);
+    const double rel = std::fabs(got - anchor) / std::fabs(anchor);
+    Check(rel <= 1e-12, "AudioMap matches the Python symmetry anchor", rel, 0.0);
+  }
   Check(serge::SymmetryBias(0.0) == 0.0 && !std::signbit(serge::SymmetryBias(0.0)), "SymmetryBias(0) is +0");
 
   LegacyChannel legacy;
@@ -402,18 +450,21 @@ void TestSymmetry()
   bool smootherStaysZero = true;
   int legacyBad = -1;
   int argsBad = -1;
+  // Same 10 Hz law, state 0. The new channel blocks internally. Legacy sees that sequence.
+  serge::DcBlock blocker;
+  blocker.Reset(fs);
+  uint32_t rng = 0xA5A5u;
   for (int i = 0; i < n; i++)
   {
-    double a = std::sin(2.0 * serge::kPi * 440.0 * static_cast<double>(i) / fs);
+    rng = rng * 1664525u + 1013904223u;
+    const double noise = (static_cast<double>(rng >> 8) / 16777216.0 - 0.5) * 0.5;
+    double a = std::sin(2.0 * serge::kPi * 440.0 * static_cast<double>(i) / fs) + noise;
     if (i == 17)
       a = 0.0;
     else if (i == 18)
       a = -0.0;
-    else if (i == 4000)
-      a = 0.0;
-    else if (i == 4001)
-      a = -0.0;
 
+    const double aBlocked = blocker.Step(a);
     const double gTarget = serge::kGMin + (serge::kGMax - serge::kGMin) * (static_cast<double>(i) / static_cast<double>(n - 1));
     const double g = fold.Step(gTarget);
     const double offset = symmetry.Step(0.0);
@@ -421,7 +472,7 @@ void TestSymmetry()
     if (!SameBits(offset, zero))
       smootherStaysZero = false;
 
-    const double yLegacy = legacy.Step(a, g);
+    const double yLegacy = legacy.Step(aBlocked, g);
     const double ySmoothed = withSmoother.Step(a, g, offset);
     if (!SameBits(yLegacy, ySmoothed))
     {
@@ -447,7 +498,7 @@ void TestSymmetry()
     }
   }
   Check(smootherStaysZero, "SymmetrySmoother at target 0 stays +0");
-  Check(matchLegacy, "offset 0 matches the pre-change path on every sample", legacyBad, -1);
+  Check(matchLegacy, "s = 0 matches the legacy channel on the blocked input", legacyBad, -1);
   Check(matchArgs, "Step(a, g) equals Step(a, g, 0.0) on every sample", argsBad, -1);
 
   const EvenBins at0 = MeasureEvenBins(0.0);
@@ -463,8 +514,8 @@ void TestSymmetry()
   Check(at0.h1 > 0.0 && atPos.h1 > 0.0 && atNeg.h1 > 0.0, "even-harmonic probe has a fundamental");
   Check(h2OverH1At0 < 1e-9, "offset 0 |H2|/|H1| below 1e-9", h2OverH1At0, 0.0);
   Check(h4OverH1At0 < 1e-9, "offset 0 |H4|/|H1| below 1e-9", h4OverH1At0, 0.0);
-  // Measured |H2|/|H1| at s = +1 V is 0.714834 (GOLDEN.md). The floor is below that, with margin.
-  constexpr double kH2OverH1Floor = 0.5;
+  // audio_map |H2|/|H1| at s = +1 V is 0.245789. This path measures 0.242482 (GOLDEN.md).
+  constexpr double kH2OverH1Floor = 0.2;
   Check(h2OverH1Pos > kH2OverH1Floor, "offset +1 V |H2|/|H1| above the floor", h2OverH1Pos, kH2OverH1Floor);
   const double mirror = std::fabs(h2OverH1Pos - h2OverH1Neg) / std::fabs(h2OverH1Pos);
   std::printf("symmetry |H2| mirror relative %.3e\n", mirror);
@@ -509,8 +560,35 @@ void TestSymmetry()
       silentReset = std::fmax(silentReset, std::fabs(held.Step(0.0, 1.0, heldS.Step(target))));
     }
   }
-  Check(silentTurn == 0.0, "silent input: turning Symmetry gives exactly 0", silentTurn, 0.0);
-  Check(silentReset == 0.0, "silent input: reset at a nonzero Symmetry gives exactly 0", silentReset, 0.0);
+  Check(silentTurn == 0.0, "silent input: turning IN 2 gives exactly 0", silentTurn, 0.0);
+  Check(silentReset == 0.0, "silent input: reset at a nonzero IN 2 gives exactly 0", silentReset, 0.0);
+
+  serge::WaveMiddleChannel left;
+  serge::WaveMiddleChannel right;
+  left.Reset(fs);
+  right.Reset(fs);
+  serge::SymmetrySmoother moveL;
+  serge::SymmetrySmoother moveR;
+  moveL.Reset(0.0, fs);
+  moveR.Reset(0.0, fs);
+  bool channelsMatch = true;
+  int channelBad = -1;
+  uint32_t rngLR = 1u;
+  for (int i = 0; i < n; i++)
+  {
+    rngLR = rngLR * 1664525u + 1013904223u;
+    const double noise = (static_cast<double>(rngLR >> 8) / 16777216.0 - 0.5);
+    const double a = 0.5 * std::sin(2.0 * serge::kPi * 220.0 * static_cast<double>(i) / fs) + 0.25 * noise;
+    const double target = 2.5 * std::sin(2.0 * serge::kPi * static_cast<double>(i) / 4800.0);
+    const double yL = left.Step(a, 1.7, moveL.Step(target));
+    const double yR = right.Step(a, 1.7, moveR.Step(target));
+    if (!SameBits(yL, yR) && channelBad < 0)
+    {
+      channelsMatch = false;
+      channelBad = i;
+    }
+  }
+  Check(channelsMatch, "L and R match for one input while IN 2 moves", channelBad, -1);
 
   smoother.Reset(std::numeric_limits<double>::quiet_NaN(), fs);
   Check(smoother.Value() == 0.0, "symmetry NaN target reads as 0", smoother.Value(), 0.0);
@@ -532,6 +610,7 @@ int main()
   TestSinePeaks();
   TestChain();
   TestSymmetry();
+  TestInputCoupling();
   std::printf("%s: %d failure(s)\n", gFailures ? "FAILED" : "PASSED", gFailures);
   return gFailures ? 1 : 0;
 }

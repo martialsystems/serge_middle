@@ -3,9 +3,10 @@
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 The full plugin path, composed from the Python reference in the order of
-IPLUG2.md: smooth g, v = 5 g a, 4x upsample, six cells, 63-tap decimator,
-decimate (phase 0), OUTPUT_GAIN * P(1) / P(g), 10 Hz block. The knob target
-steps from 1 to 2 a quarter of the way in so the smoother is exercised.
+IPLUG2.md: IN 1 block, smooth g, v = 2.5 * g * a, 4x upsample, six cells,
+63-tap decimator, decimate (phase 0), OUTPUT_GAIN * P(1) / P(g), 10 Hz
+output block. s stays 0, so the cells see no offset. The knob target steps
+from 1 to 2 a quarter of the way in so the smoother is exercised.
 
     python3 tools/make_chain_fixture.py
 """
@@ -37,7 +38,8 @@ def main() -> int:
     for t in target:
         g = wm.smooth_g(g, t, coeff)
         gs.append(g)
-    volts = [wm.AUDIO_FULL_SCALE_VOLTS * wm.drive_scale(gi) * ai for gi, ai in zip(gs, a)]
+    blocked, _state = wm.dc_block(a, FS)
+    volts = [wm.AUDIO_FULL_SCALE_VOLTS * wm.drive_scale(gi) * ai for gi, ai in zip(gs, blocked)]
     high, _ = wm.fir_run(wm.insert_zeros(volts), wm.UPSAMPLE_TAPS)
     cells = [wm.process(x) for x in high]
     low = wm.decimate(wm.fir_run(cells, wm.HALFBAND_TAPS)[0])

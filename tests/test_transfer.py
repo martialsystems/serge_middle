@@ -55,15 +55,16 @@ class TransferAcceptanceTest(unittest.TestCase):
         self.assertEqual(wm.VIN_MIN, -6.0)
         self.assertEqual(wm.VIN_MAX, 6.0)
         self.assertEqual(wm.N_SAMPLES, 6001)
-        self.assertEqual(wm.AUDIO_FULL_SCALE_VOLTS, 5.0)
-        self.assertEqual(wm.FULL_SCALE_PEAK_VIN, 4.7072868603604885)
-        self.assertEqual(wm.OUTPUT_GAIN, 4.3792716960440945)
+        self.assertEqual(wm.AUDIO_FULL_SCALE_VOLTS, 2.5)
+        self.assertEqual(wm.FULL_SCALE_PEAK_VIN, 1.9540205790723362)
+        self.assertEqual(wm.OUTPUT_GAIN, 5.632920993639031)
         self.assertEqual(wm.DC_BLOCK_HZ, 10.0)
         self.assertEqual(wm.DRIVE_PEAK_REL_ERROR, 1e-3)
-        self.assertEqual(len(wm.DRIVE_PEAKS), 53)
+        self.assertEqual(len(wm.DRIVE_PEAKS), 54)
         self.assertEqual(wm.DRIVE_PEAKS[0][0], 0.5)
         self.assertEqual(wm.DRIVE_PEAKS[-1][0], 8.0)
         self.assertEqual(wm.drive_peak(1.0), abs(wm.process(wm.FULL_SCALE_PEAK_VIN)))
+        self.assertEqual(wm.build_drive_peaks(), wm.DRIVE_PEAKS)
 
     def test_grid_is_odd_and_closed(self) -> None:
         vin = [v for v, _ in self.samples]
@@ -169,7 +170,7 @@ class TransferAcceptanceTest(unittest.TestCase):
     def test_full_scale_gain(self) -> None:
         peak_y = wm.process(wm.FULL_SCALE_PEAK_VIN)
         self.assertEqual(wm.OUTPUT_GAIN * abs(peak_y), 1.0)
-        self.assertLess(peak_y, 0.0)
+        self.assertGreater(peak_y, 0.0)
         for delta in (1e-4, 1e-3, 1e-2):
             self.assertLess(abs(wm.process(wm.FULL_SCALE_PEAK_VIN - delta)), abs(peak_y))
             self.assertLess(abs(wm.process(wm.FULL_SCALE_PEAK_VIN + delta)), abs(peak_y))
@@ -206,21 +207,21 @@ class TransferAcceptanceTest(unittest.TestCase):
         self.assertIn(f"{wm.OUTPUT_GAIN:.6f}", self.readme)
         self.assertIn(f"{wm.FULL_SCALE_PEAK_VIN:.6f}", self.readme)
         self.assertIn(f"{wm.process(wm.FULL_SCALE_PEAK_VIN):.6f}", self.readme)
-        self.assertIn("v = g * 5 * a", self.readme)
+        self.assertIn("v = 2.5 * g * a", self.readme)
         self.assertIn("d(g) = g", self.readme)
         self.assertIn("P(1) / P(g)", self.readme)
         self.assertIn("y[n] = x[n] - x[n-1] + r * y[n-1]", self.readme)
         self.assertIn("within 0.001", self.readme)
         self.assertIn("within 0.005", self.readme)
-        self.assertIn(f"{wm.FULL_SCALE_PEAK_VIN / 5.0:.6f}", self.readme)
+        self.assertIn(f"{wm.FULL_SCALE_PEAK_VIN / wm.AUDIO_FULL_SCALE_VOLTS:.6f}", self.readme)
         unity = wm.drive_peak(1.0)
         plateau = max(g for g, peak in wm.DRIVE_PEAKS if peak == unity)
         self.assertIn(f"{plateau:.6f}", self.readme)
         for g, db_text in (
-            (0.5, "-2.187"),
-            (2.0, "25.093"),
-            (4.0, "35.522"),
-            (8.0, "43.258"),
+            (0.5, "-0.449"),
+            (2.0, "2.187"),
+            (4.0, "27.280"),
+            (8.0, "37.709"),
         ):
             db = 20.0 * math.log10(wm.drive_peak(g) / unity)
             self.assertEqual(f"{db:.3f}", db_text)
@@ -249,14 +250,17 @@ class TransferAcceptanceTest(unittest.TestCase):
             "10 Hz",
             "Dual Universal Slope Generator",
             "No envelope",
-            "1.152747",
+            "1.109037",
+            "0.310004",
             "within 0.005",
-            "25.093",
+            "2.187",
+            "27.280",
+            "37.709",
             "halfband_taps.csv",
             "upsample_taps.csv",
             "g[n] = g[n-1] + (1 - c) * (g_target - g[n-1])",
             "c = exp(-1 / (0.020 * fs))",
-            "smooth g, v = 5 * g * a, 4× upsample, six cells, 63-tap halfband",
+            "IN 1 block, smooth g, smooth s, v = 2.5 * g * a, 4× upsample, add s, six cells, subtract C^6(s), 63-tap halfband",
         ):
             self.assertIn(phrase, prompt)
 
@@ -264,25 +268,28 @@ class TransferAcceptanceTest(unittest.TestCase):
         unity = wm.drive_peak(1.0)
         g0, p0 = wm.DRIVE_PEAKS[0]
         self.assertEqual(wm.drive_peak(g0), p0)
-        self.assertAlmostEqual(wm.max_abs_process(5.0 * g0), p0, delta=1e-12)
+        self.assertAlmostEqual(wm.max_abs_process(wm.AUDIO_FULL_SCALE_VOLTS * g0), p0, delta=1e-12)
         self.assertAlmostEqual(wm.output_scale(g0) * p0, 1.0, delta=1e-12)
         previous_g, previous_p = g0, p0
         for g, peak in wm.DRIVE_PEAKS[1:]:
             self.assertGreater(g, previous_g)
             self.assertGreaterEqual(peak + 1e-15, previous_p)
             self.assertEqual(wm.drive_peak(g), peak)
-            self.assertAlmostEqual(wm.max_abs_process(5.0 * g), peak, delta=1e-12)
+            self.assertAlmostEqual(wm.max_abs_process(wm.AUDIO_FULL_SCALE_VOLTS * g), peak, delta=1e-12)
             self.assertAlmostEqual(wm.output_scale(g) * peak, 1.0, delta=1e-12)
             previous_g, previous_p = g, peak
         self.assertEqual(wm.output_scale(1.0), wm.OUTPUT_GAIN)
         self.assertEqual(unity, abs(wm.process(wm.FULL_SCALE_PEAK_VIN)))
-        lobes = wm.positive_lobe_peaks(40.0)
+        lobes = wm.positive_lobe_peaks(wm.AUDIO_FULL_SCALE_VOLTS * wm.G_MAX)
         self.assertEqual(len(lobes), 6)
-        self.assertAlmostEqual(lobes[-1][0], wm.FULL_SCALE_PEAK_VIN, delta=1e-6)
-        for g in (1.2, 2.0, 3.0, 4.0, 8.0):
-            limit = 5.0 * g
+        inside = [pair for pair in lobes if pair[0] <= wm.AUDIO_FULL_SCALE_VOLTS]
+        best = max(inside, key=lambda pair: pair[1])
+        self.assertEqual(best[0], wm.FULL_SCALE_PEAK_VIN)
+        # The endpoint is the running maximum only after the last lobe plateau.
+        for g in (3.0, 4.0, 8.0):
+            limit = wm.AUDIO_FULL_SCALE_VOLTS * g
             self.assertEqual(wm.max_abs_process(limit), abs(wm.process(limit)))
-        for g in (2.0, 4.0, 8.0):
+        for g in (4.0, 8.0):
             self.assertEqual(wm.audio_map(1.0, g), 1.0)
             self.assertEqual(wm.audio_map(-1.0, g), -1.0)
         worst = 0.0
@@ -291,18 +298,18 @@ class TransferAcceptanceTest(unittest.TestCase):
             g1 = wm.DRIVE_PEAKS[index][0]
             for step in range(41):
                 g = g0 + (g1 - g0) * step / 40.0
-                measured = wm.max_abs_process(5.0 * g)
+                measured = wm.max_abs_process(wm.AUDIO_FULL_SCALE_VOLTS * g)
                 rel = abs(measured / wm.drive_peak(g) - 1.0)
                 if rel > worst:
                     worst = rel
         self.assertLessEqual(worst, wm.DRIVE_PEAK_REL_ERROR)
-        # A sample below the g = 2 peak keeps the ratio. Clipping OUTPUT_GAIN * y
+        # A sample below the g = 4 peak keeps the ratio. Clipping OUTPUT_GAIN * y
         # would pin this one at ±1.
         sample = 0.7
-        volts = wm.AUDIO_FULL_SCALE_VOLTS * wm.drive_scale(2.0) * sample
+        volts = wm.AUDIO_FULL_SCALE_VOLTS * wm.drive_scale(4.0) * sample
         raw = wm.process(volts)
-        bounded = wm.audio_map(sample, 2.0)
-        self.assertEqual(bounded, wm.output_scale(2.0) * raw)
+        bounded = wm.audio_map(sample, 4.0)
+        self.assertEqual(bounded, wm.output_scale(4.0) * raw)
         self.assertGreater(abs(wm.OUTPUT_GAIN * raw), 1.0)
         self.assertLess(abs(bounded), 1.0)
         for g in (0.5, 1.0, 1.7, 8.0):
@@ -359,11 +366,11 @@ class TransferAcceptanceTest(unittest.TestCase):
         peak = max(abs(v) for v in src)
         ratio = max(abs(v) for v in got) / peak
         deviation = max(abs(got[i] - src[i]) for i in range(n)) / peak
-        self.assertEqual(f"{ratio:.6f}", "1.152747")
-        self.assertEqual(f"{deviation:.6f}", "0.390095")
+        self.assertEqual(f"{ratio:.6f}", "1.109037")
+        self.assertEqual(f"{deviation:.6f}", "0.310004")
         self.assertIn("11.71875", self.readme)
-        self.assertIn("1.152747", self.readme)
-        self.assertIn("0.390095", self.readme)
+        self.assertIn("1.109037", self.readme)
+        self.assertIn("0.310004", self.readme)
         for frequency, six, three in (
             (11.71875, "0.761185", "0.761"),
             (40.0, "0.970778", "0.971"),

@@ -40,9 +40,9 @@ The one-sided limits at the origin have magnitude 2 * eta * VT * W(k), because t
 
 ## Why P(g) is a table
 
-P(g) is the maximum of |C^6(v)| for |v| <= 5 g. On (0, 40 V] the absolute map has six interior lobes, and then the peak is the endpoint. From the last lobe through g = 1.109989 the running maximum stays on the g = 1 peak. Past that drive the endpoint is the peak, and it is still climbing at 40 V. A single `OUTPUT_GAIN` cannot hold unity at every g, because that running maximum leaves the g = 1 plateau.
+P(g) is the maximum of |C^6(v)| for |v| <= 2.5 g. On (0, 20 V] the absolute map has six interior lobes, and then the peak is the endpoint. The g = 1 peak is the lobe at 1.954021 V. That plateau runs through g = 1.094801. The endpoint becomes the running maximum after g = 2.219977, and it is still climbing at 20 V. A single `OUTPUT_GAIN` cannot hold unity at every g, because that running maximum leaves the g = 1 plateau.
 
-The 53 knots in `DRIVE_PEAKS` are linear in g. Between them the relative error stays within 0.001. The audio thread reads the table. Searching for the peak on that thread would retune the bound per sample and would not match the knots.
+The 54 knots in `DRIVE_PEAKS` are `build_drive_peaks(2.5)` pasted into `wave_middle.py`. Anchors are g = 0.5, 1, 2, 4, and 8, each interior lobe the drive reaches, and the later voltage where |C^6| climbs back to that lobe. Any span whose linear chord exceeds relative error 0.001 on 80 interior samples is split at the worst of those samples. Between the stored knots the relative error stays within 0.001. The audio thread reads the table. Searching for the peak on that thread would retune the bound per sample and would not match the knots.
 
 ## The 11.7 Hz buffer
 
@@ -54,7 +54,7 @@ The one-pole magnitude is
 
 with w = 2 * pi * f / fs and r = exp(-2 * pi * 10 / fs). |H| at 0 Hz is 0. A pure sine at 11.71875 Hz, one cycle of a 4,096-point buffer at 48 kHz, has |H| = 0.761185. At 40 Hz it is 0.970778. At 100 Hz it is 0.995689.
 
-The folded buffer is a different waveform. One cycle of `audio_map` at g = 1, after one lead-in period from zero state, has peak ratio 1.152747 and a maximum deviation of 0.390095 times the pre-block peak. The fundamental sits near the pole, and the folds put energy on harmonics whose gains differ. The mean of that one-cycle buffer is below 1e-9, and the peak ratio is still 1.152747. The cutoff stays at 10 Hz.
+The folded buffer is a different waveform. One cycle of `audio_map` at g = 1, after one lead-in period from zero state, has peak ratio 1.109037 and a maximum deviation of 0.310004 times the pre-block peak. The fundamental sits near the pole, and the folds put energy on harmonics whose gains differ. The mean of that one-cycle buffer is below 1e-9, and the peak ratio is still 1.109037. The cutoff stays at 10 Hz.
 
 ## Smoother
 

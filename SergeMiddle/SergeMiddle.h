@@ -11,7 +11,7 @@ const int kNumPresets = 1;
 enum EParams
 {
   kFold = 0,
-  kSymmetry = 1,
+  kIn2 = 1,
   kNumParams
 };
 

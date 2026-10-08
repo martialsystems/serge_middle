@@ -46,7 +46,7 @@ inline gfx::IRECT CaptionBounds(const gfx::IRECT& plate, float xFrac)
                     cx + half, plate.T + kCaptionBottom * plate.H());
 }
 
-// Skirted cap for Fold and for Symmetry. The pointer and its shadow are one bitmap, so they share one angle.
+// Skirted cap for Fold and for IN 2. The pointer and its shadow are one bitmap, so they share one angle.
 class PleatKnob final : public gfx::IKnobControlBase
 {
 public:
