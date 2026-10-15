@@ -43,8 +43,10 @@ inline constexpr int kMeterCount = kNumInputs + kNumOutputs;
 inline constexpr uint8_t kRoutingMagic = 0x52;
 inline constexpr uint8_t kRoutingVersion = 1;
 inline constexpr int kRoutingBytes = 3 + kNumInputs;
-inline constexpr double kVcOctavesPerVolt = 0.8;
 inline constexpr double kIn2CableLimit = 10.0;
+// Combined PLEAT OUT jack. The cells are not clipped. This rail is applied
+// after the level law, and a sample already inside it is left untouched.
+inline constexpr double kPleatOutLimit = 5.0;
 inline constexpr double kGateVolts = 5.0;
 // 5 * (216 / 240) is not a binary 4.5, so a 4.5 V compare can miss the exact stair.
 // 4 V is exact at 5 * (192 / 240), which is 80% of a straight 5 V rise.
@@ -184,8 +186,10 @@ inline double ClampPatchedIn2(double volts)
   return volts;
 }
 
-// g = clamp(gS * 2^(0.8 * depth * VC), 0.5, 8). VC of 0, or depth of 0, returns gS
-// with no multiply, so the smoother value reaches the cells unchanged.
+// g = clamp(gS + depth * VC, 0.5, 8). The fold knob is the baseline and the
+// attenuated VC is added to it, in fold-amount units: one volt at depth 1
+// adds 1. Depth 0, or a VC of 0 V, returns gS with no addition, so the
+// smoother value reaches the cells unchanged.
 inline double FoldWithVc(double gS, double depth, double vc)
 {
   if (!std::isfinite(gS))
@@ -196,10 +200,10 @@ inline double FoldWithVc(double gS, double depth, double vc)
     depth = 1.0;
   if (!std::isfinite(vc) || vc == 0.0)
     return gS;
-  const double factor = std::pow(2.0, kVcOctavesPerVolt * depth * vc);
-  if (!std::isfinite(factor))
+  const double summed = gS + depth * vc;
+  if (!std::isfinite(summed))
     return serge::DriveScale(gS);
-  return serge::DriveScale(gS * factor);
+  return serge::DriveScale(summed);
 }
 
 // Held MIDI notes. A second note-on does not add, and a second note-off does not subtract.
@@ -352,7 +356,13 @@ public:
     const double a = in1Patched ? mIn[PleatIn1] / serge::kAudioFullScaleVolts : hostIn;
     mHost = mPleat.Step(a, mAppliedG, sS, in2Patched, mIn[PleatIn2]);
 
-    mOut[PleatOut] = serge::kAudioFullScaleVolts * mHost;
+    double pleatOut = serge::kAudioFullScaleVolts * mHost;
+    if (pleatOut > kPleatOutLimit || pleatOut < -kPleatOutLimit)
+    {
+      pleatOut = pleatOut > kPleatOutLimit ? kPleatOutLimit : -kPleatOutLimit;
+      mHost = pleatOut / serge::kAudioFullScaleVolts;
+    }
+    mOut[PleatOut] = pleatOut;
     mOut[SlopeEnd] = EndJackVolts(sample.end, sample.out);
     mOut[SlopeOut] = sample.out;
     mOut[SlopeAc] = coupled;

@@ -1,0 +1,40 @@
+{
+  "name": "midi_note_gate",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 20,
+  "note": "Note 60 holds TRIG at +5 V through the rise, so the slope sustains. Note 64 during the fall is a new edge and does not restart the cycle.",
+  "params": {
+    "rise_s": 0.005,
+    "fall_s": 0.005,
+    "cycle": false,
+    "fold": 1.0,
+    "pleat_vc_depth": 0.0,
+    "route": "both"
+  },
+  "signals": {
+    "host": {"type": "silence"},
+    "midi": {
+      "type": "notes",
+      "events": [
+        {"note": 60, "on_sample": 0, "off_sample": 300},
+        {"note": 64, "on_sample": 400, "off_sample": 410}
+      ]
+    }
+  },
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {
+      "id": "note_sustains",
+      "type": "oneshot",
+      "jack": "slope_out",
+      "rise_samples": 240,
+      "hold_last": 300,
+      "fall_samples": 240,
+      "tol": 1e-9
+    },
+    {"id": "gate_high", "type": "hold", "jack": "slope_trig", "t0_sample": 0, "t1_sample": 300, "volts": 5.0, "tol": 1e-12},
+    {"id": "gate_low", "type": "hold", "jack": "slope_trig", "t0_sample": 300, "t1_sample": 400, "volts": 0.0, "tol": 1e-12},
+    {"id": "later_note", "type": "hold", "jack": "slope_trig", "t0_sample": 400, "t1_sample": 410, "volts": 5.0, "tol": 1e-12}
+  ]
+}

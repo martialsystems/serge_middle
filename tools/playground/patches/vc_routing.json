@@ -1,0 +1,29 @@
+{
+  "name": "vc_routing",
+  "engine": "slope",
+  "sample_rate": 48000,
+  "duration_ms": 125,
+  "note": "VC jack is +1 V. Depth 0 leaves the 5 ms cycle alone. Depth +1 shortens both segments. Depth -1 lengthens them. RISE and FALL each change only that segment.",
+  "params": {"rise_s": 0.005, "fall_s": 0.005, "cycle": true, "route": "both"},
+  "signals": {"vc": {"type": "dc", "volts": 1.0}},
+  "segments": [
+    {"t0_ms": 0, "t1_ms": 25, "reset": true, "params": {"vc_depth": 0.0, "route": "both", "cycle": true}},
+    {"t0_ms": 25, "t1_ms": 50, "reset": true, "params": {"vc_depth": 1.0, "route": "both", "cycle": true}},
+    {"t0_ms": 50, "t1_ms": 75, "reset": true, "params": {"vc_depth": -1.0, "route": "both", "cycle": true}},
+    {"t0_ms": 75, "t1_ms": 100, "reset": true, "params": {"vc_depth": 1.0, "route": "rise", "cycle": true}},
+    {"t0_ms": 100, "t1_ms": 125, "reset": true, "params": {"vc_depth": 1.0, "route": "fall", "cycle": true}}
+  ],
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {"id": "depth0_no_effect", "type": "period", "jack": "out", "t0_ms": 0, "t1_ms": 25, "samples": 480},
+    {"id": "depth0_rise", "type": "peak_offset", "jack": "out", "t0_ms": 0, "t1_ms": 25, "offset": 240},
+    {"id": "depth_plus_shortens", "type": "period", "jack": "out", "t0_ms": 25, "t1_ms": 50, "samples": 384},
+    {"id": "depth_plus_rise", "type": "peak_offset", "jack": "out", "t0_ms": 25, "t1_ms": 50, "offset": 192},
+    {"id": "depth_minus_lengthens", "type": "period", "jack": "out", "t0_ms": 50, "t1_ms": 75, "samples": 576},
+    {"id": "depth_minus_rise", "type": "peak_offset", "jack": "out", "t0_ms": 50, "t1_ms": 75, "offset": 288},
+    {"id": "rise_route_period", "type": "period", "jack": "out", "t0_ms": 75, "t1_ms": 100, "samples": 432},
+    {"id": "rise_route_only", "type": "peak_offset", "jack": "out", "t0_ms": 75, "t1_ms": 100, "offset": 192},
+    {"id": "fall_route_period", "type": "period", "jack": "out", "t0_ms": 100, "t1_ms": 125, "samples": 432},
+    {"id": "fall_route_only", "type": "peak_offset", "jack": "out", "t0_ms": 100, "t1_ms": 125, "offset": 240}
+  ]
+}

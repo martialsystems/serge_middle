@@ -1,0 +1,29 @@
+{
+  "name": "end_to_trig",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "sample_rates": [44100, 48000, 96000],
+  "duration_ms": 40,
+  "note": "Cycle is off. The END jack is cabled to TRIG, which is how a DUSG cycles. The cable is one sample longer than the Cycle switch.",
+  "params": {
+    "rise_s": 0.005,
+    "fall_s": 0.005,
+    "cycle": false,
+    "fold": 1.0,
+    "pleat_vc_depth": 0.0,
+    "route": "both"
+  },
+  "signals": {"host": {"type": "silence"}},
+  "cables": [{"from": "slope_end", "to": "slope_trig"}],
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {
+      "id": "cable_period",
+      "type": "period",
+      "jack": "slope_out",
+      "t0_ms": 0,
+      "t1_ms": 40,
+      "samples": {"44100": 441, "48000": 481, "96000": 961}
+    }
+  ]
+}

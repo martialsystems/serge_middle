@@ -1,0 +1,28 @@
+{
+  "name": "trig_no_retrigger",
+  "engine": "slope",
+  "sample_rate": 48000,
+  "duration_ms": 15,
+  "note": "One-sample pulses at the start, during the rise, on the sample the rise finishes, and during the fall. None of the later pulses restarts the cycle or holds at +5 V.",
+  "params": {"rise_s": 0.005, "fall_s": 0.005, "cycle": false, "route": "both"},
+  "signals": {
+    "trig": {
+      "type": "pulses",
+      "high": 5.0,
+      "width_samples": 1,
+      "at_samples": [0, 100, 240, 400]
+    }
+  },
+  "golden_abs_tol": 1e-9,
+  "checks": [
+    {
+      "id": "later_pulse_ignored",
+      "type": "oneshot",
+      "jack": "out",
+      "rise_samples": 240,
+      "hold_last": 240,
+      "fall_samples": 240,
+      "tol": 1e-9
+    }
+  ]
+}
