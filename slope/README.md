@@ -11,20 +11,20 @@ The second half is `slope/second.py`, the same circuit with its own state. Its e
 | Control | Role |
 | --- | --- |
 | IN | Signal. Full-wave rectified, then slewed. A positive voltage overrides TRIG. |
-| TRIG | Rising edge above 1 V. Starts a rise from idle at 0 V. Ignored until the output has returned to 0 V. |
-| VC | Positive voltage shortens the selected time by 0.001 s/V. Negative voltage lengthens it. |
+| TRIG | Rising edge above 1 V. Starts a rise from idle at 0 V. Ignored until the output has returned to 0 V. A level that has stayed high since that edge holds at +5 V until it goes low. A later pulse does not hold. |
+| VC | Positive voltage shortens the selected time by 0.001 s/V. Negative voltage lengthens it. The plugins put an attenuverter in front of this jack. |
 | 1V/oct | +1 V halves both rise and fall. |
 | RISE | Knob. Base rise time, seconds for 0 V to +5 V. |
 | FALL | Knob. Base fall time, seconds for +5 V to 0 V. |
 | BOTH | Switch. The VC jack, including the scaled OUT patch, lands on RISE, on FALL, or on both. |
 | OUT | 0 V to +5 V. |
-| END | High during the rise, the hold, and while the output is at 0 V. Low during the fall. |
+| END | Circuit gate: high during the rise, the hold, and while the output is at 0 V. Low during the fall. The jack is 0 V or +5 V. |
 
 ## Law
 
 `fs` is the sample rate. The acceptance rate is 48,000 Hz. `T_rise` and `T_fall` are the knobs, in seconds. `VC` is the voltage on the VC jack. `a` is the feedback amount, clamped to [-1, +1]. `v` is the voltage held on OUT. `V_1v` is the 1V/oct jack.
 
-The bend is the OUT jack patched to the VC jack. `a` scales that patch. The sample law is:
+The bend is the OUT jack patched to the VC jack. `a` scales that patch. The attenuverter is a separate scale on the jack voltage, `scale_vc(VC, depth)`, clamped to [-1, +1]. Depth 0 passes nothing, which is the plugin default, so an unpatched or untouched VC jack stays at 0 V. Depth +1 passes the jack. Depth -1 inverts it. The sample law uses that scaled voltage as `VC`:
 
 ```text
 u = min(5, abs(IN))
@@ -57,9 +57,11 @@ fall step = m * 5 / (T_f * fs)
 
 Positive `a` raises `VC_in` as `v` rises, shortens the rise, and climbs faster than the linear case `a` = 0. Negative `a` lowers `VC_in`, lengthens the rise, and climbs slower. The total time of the excursion changes with the bend.
 
-A trigger edge while idle at 0 V starts a rise. At +5 V the state becomes the fall. The update that reaches 0 V records one end-pulse and waits. The following sample emits 0 V with END high. Oscillator mode is that pulse patched back to TRIG (`end_to_trig` on `step`). One end-pulse per accepted trigger, so a trigger train faster than rise + fall divides by 2, 3, and so on.
+A trigger edge while idle at 0 V starts a rise. At +5 V the state becomes the fall, unless TRIG is still above 1 V. Then the output holds at +5 V and the fall does not begin until TRIG goes low (Serge Modular Music Systems DUSG kit sheet; SFU manual, page 11: the fall cycle will not begin until the trigger level goes low). A trigger that has already gone low by the time the rise finishes does not hold: the fall starts at the top. That includes a short pulse, and a gate that ends during the rise. The hold does not wait for 4 V. A second rising edge during the rise, the hold, or the fall does not start another cycle. The update that reaches 0 V records one end-pulse and waits. The following sample emits 0 V with the circuit END gate high. Oscillator mode is that pulse patched back to TRIG (`end_to_trig` on `step`). One end-pulse per accepted trigger, so a trigger train faster than rise + fall divides by 2, 3, and so on.
 
-`u > 0` overrides TRIG. The output slews toward `u` at the rise rate, holds at `u` while the input stays there, and falls when `u` returns to 0. Peak-follower use is rise at one sample and audio on IN. The negative half of that audio is `abs`, so it is flipped onto the positive envelope.
+`u > 0` overrides TRIG. The output slews toward `u` at the rise rate, holds at `u` while the input stays there, and falls when `u` returns to 0, even if TRIG is still high. Peak-follower use is rise at one sample and audio on IN. The negative half of that audio is `abs`, so it is flipped onto the positive envelope.
+
+The circuit END gate is 0 during the fall and 1 otherwise, including the hold at +5 V and idle at 0 V. The END jack is not that gate. It is `end_jack_volts`: +5 V while the gate is high and OUT is below 4 V, otherwise 0 V. Idle is +5 V. A hold at +5 V is 0 V on the jack. The same function is what both plugins use. The 4 V window is why an END to TRIG cord cycles: a jack that stayed high for the whole rise would meet the hold rule and sit at +5 V. The original DUSG TRIG OUT stayed high through the rise (SMMS DUSG kit sheet, page 3). This jack is the 0 V / +5 V window.
 
 Reference cycle, equal knobs: rise = fall = 5 ms, `a` = 0, `VC` = 0, `V_1v` = 0. The output is 0 V and +5 V at the corners. The period is 480 samples, 10 ms. END is high for the 240 rise samples and low for the 240 fall samples, so the duty is rise / (rise + fall).
 

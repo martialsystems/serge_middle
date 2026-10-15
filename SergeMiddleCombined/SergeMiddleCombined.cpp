@@ -24,6 +24,17 @@ void ShowTime(double value, WDL_String& display)
   slope::FormatTime(value, buf, sizeof buf);
   display.Set(buf);
 }
+
+void ShowRoute(double value, WDL_String& display)
+{
+  const int index = static_cast<int>(std::lround(value));
+  const char* name = "BOTH";
+  if (index == 0)
+    name = "RISE";
+  else if (index == 2)
+    name = "FALL";
+  display.Set(name);
+}
 } // namespace
 
 SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
@@ -45,6 +56,11 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kRise)->SetDisplayFunc(ShowTime);
   GetParam(kFall)->SetDisplayFunc(ShowTime);
   GetParam(kCycle)->InitBool("Cycle", false);
+  // Appended so a project saved before these controls keeps the six above.
+  // Depth 0 leaves a slope VC cord at 0 V. Route 1 is BOTH, the circuit default.
+  GetParam(kSlopeVc)->InitDouble("Slope VC", 0.0, -1.0, 1.0, 0.001);
+  GetParam(kRoute)->InitInt("Route", 1, 0, 2);
+  GetParam(kRoute)->SetDisplayFunc(ShowRoute);
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -63,6 +79,7 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
     const IBitmap plate = pGraphics->LoadBitmap("middle_plate.png");
     const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
     const IBitmap cycle = pGraphics->LoadBitmap("slope_switch.png", 2);
+    const IBitmap route = pGraphics->LoadBitmap("slope_route.png", 3);
 
     pGraphics->AttachControl(new ILambdaControl(
         bounds,
@@ -79,11 +96,13 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
                                                  COLOR_TRANSPARENT, false));
     pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kRiseX), kRise, knob));
     pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kFallX), kFall, knob));
+    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope), kSlopeVc, knob, slopeview::kVcD));
     pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kRiseX), kRise, valueText,
                                                  COLOR_TRANSPARENT, false));
     pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kFallX), kFall, valueText,
                                                  COLOR_TRANSPARENT, false));
     pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope), cycle, kCycle));
+    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope), kRoute, route));
     pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope), kRise, kFall, kCycle,
                                                         [this]() { return GetSampleRate(); }),
                              kRateTag);
@@ -211,11 +230,14 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
     const double sS = mSymmetry.Step(in2Target);
     const double rise = GetParam(kRise)->Value();
     const double fall = GetParam(kFall)->Value();
+    const double slopeDepth = GetParam(kSlopeVc)->Value();
+    const int route = GetParam(kRoute)->Int();
     const bool arm = cycle && mArm;
     for (int c = 0; c < nChans; ++c)
     {
       const double host = static_cast<double>(inputs[c][s]);
-      const double y = mChannels[c].Step(host, gate, gS, sS, depth, rise, fall, cycle, arm, routing);
+      const double y = mChannels[c].Step(host, gate, gS, sS, depth, rise, fall, cycle, arm, routing,
+                                         slopeDepth, route);
       outputs[c][s] = static_cast<sample>(y);
       if (c == 0)
       {

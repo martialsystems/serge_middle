@@ -48,18 +48,18 @@ inline constexpr double kIn2CableLimit = 10.0;
 inline constexpr double kGateVolts = 5.0;
 // 5 * (216 / 240) is not a binary 4.5, so a 4.5 V compare can miss the exact stair.
 // 4 V is exact at 5 * (192 / 240), which is 80% of a straight 5 V rise.
-// The hold starts on the next sample. The END jack uses the same 4 V mark.
-inline constexpr double kHoldVolts = 4.0;
+// The END jack uses that mark. A TRIG sustain does not: the fall waits at +5 V.
+inline constexpr double kHoldVolts = slope::kEndWindowVolts;
+static_assert(kHoldVolts == 4.0, "END window stays at 4 V");
 
-// SLOPE END jack, in volts. The circuit end gate is still 0 while falling and
-// 1 otherwise, and the Cycle switch still reads that gate inside the circuit.
-// The jack is 5 V when the gate is high and slope OUT is below 4 V, otherwise 0 V.
-// Idle OUT of 0 V is high, so an END to TRIG cable at idle is a rising edge.
+// SLOPE END jack, in volts. Shared with the slope header. 0 V or +5 V.
+// The circuit end gate is still 0 while falling and 1 otherwise, and the
+// Cycle switch still reads that gate inside the circuit. The jack is +5 V
+// when the gate is high and slope OUT is below 4 V, otherwise 0 V. Idle OUT
+// of 0 V is high, so an END to TRIG cable at idle is a rising edge.
 inline double EndJackVolts(double endGate, double out)
 {
-  if (endGate > 0.0 && out < kHoldVolts)
-    return kGateVolts;
-  return 0.0;
+  return slope::EndJackVolts(endGate, out);
 }
 
 inline int MeterOf(bool output, int index)
@@ -303,12 +303,14 @@ public:
     mOut[SlopeEnd] = kGateVolts;
     mAppliedG = serge::kGDefault;
     mHost = 0.0;
-    mTrigWasHigh = false;
   }
 
   // `arm` is the one-sample Cycle arm. `cycle` keeps the END to TRIG cord.
+  // `slopeVcDepth` is the attenuverter, default 0, so an unscaled jack is not
+  // what a saved project gets. `slopeRoute` is 0 rise, 1 both, 2 fall.
   double Step(double hostIn, double midiGateVolts, double gS, double sS, double depth, double rise,
-              double fall, bool cycle, bool arm, const Routing& routing)
+              double fall, bool cycle, bool arm, const Routing& routing, double slopeVcDepth = 0.0,
+              int slopeRoute = 1)
   {
     if (!std::isfinite(hostIn))
       hostIn = 0.0;
@@ -332,23 +334,18 @@ public:
     }
 
     double inp = mIn[SlopeIn];
-    double circuitTrig = (cycle && arm) ? kGateVolts : 0.0;
-    const bool trigHigh = mIn[SlopeTrig] > slope::kTrigThreshold;
-    // A TRIG voltage still high near the top holds at +5 V. A rising edge
-    // starts the excursion. IN other than 0 overrides TRIG, as the circuit does.
-    if (inp == 0.0 && trigHigh)
-    {
-      if (!mTrigWasHigh)
-        circuitTrig = kGateVolts;
-      else if (mSlope.Volts() > kHoldVolts)
-        inp = kGateVolts;
-    }
-    mTrigWasHigh = trigHigh;
+    // The circuit sees the TRIG level, not a one-sample edge. A level that has
+    // stayed high since the starting edge holds at +5 V. The Cycle arm is one high sample.
+    double circuitTrig = mIn[SlopeTrig];
+    if (cycle && arm && !(circuitTrig > slope::kTrigThreshold))
+      circuitTrig = kGateVolts;
 
     const double safeRise = SafeTime(rise);
     const double safeFall = SafeTime(fall);
+    mSlope.SetSwitch(slope::SwitchFromInt(slopeRoute));
     mSlope.SetTimes(safeRise, safeFall);
-    const slope::Sample sample = mSlope.Step(inp, circuitTrig, mIn[SlopeVc], 0.0, 0.0, cycle);
+    const double scaledVc = slope::ScaleVc(mIn[SlopeVc], slopeVcDepth);
+    const slope::Sample sample = mSlope.Step(inp, circuitTrig, scaledVc, 0.0, 0.0, cycle);
     const double coupled = mCoupler.Step(sample.ac - slope::kAcCenter);
 
     mAppliedG = FoldWithVc(gS, depth, mIn[PleatVc]);
@@ -491,7 +488,6 @@ private:
   double mOut[kNumOutputs] = {0.0, kGateVolts, 0.0, 0.0};
   double mAppliedG = serge::kGDefault;
   double mHost = 0.0;
-  bool mTrigWasHigh = false;
 };
 
 } // namespace patch

@@ -42,7 +42,11 @@ class SlopeEditorTest(unittest.TestCase):
         self.assertIn("GetParam(kRise)->Value()", body)
         self.assertIn("GetParam(kFall)->Value()", body)
         self.assertIn("GetParam(kCycle)->Bool()", body)
+        self.assertIn("GetParam(kVc)->Value()", body)
+        self.assertIn("GetParam(kRoute)->Int()", body)
         self.assertIn("slope::HostSample(", body)
+        self.assertLess(body.index("GetParam(kCycle)"), body.index("GetParam(kVc)"))
+        self.assertLess(body.index("GetParam(kVc)"), body.index("GetParam(kRoute)"))
         self.assertNotIn("slope::PluginSample(", body)
         self.assertNotIn("PluginSampleOneShot", body)
         self.assertEqual(body.count("GetParam(kCycle)"), 1)
@@ -52,10 +56,14 @@ class SlopeEditorTest(unittest.TestCase):
         plate_2x = png_ihdr(PLUGIN / "resources" / "slope_plate@2x.png")
         switch = png_ihdr(PLUGIN / "resources" / "slope_switch.png")
         switch_2x = png_ihdr(PLUGIN / "resources" / "slope_switch@2x.png")
+        route = png_ihdr(PLUGIN / "resources" / "slope_route.png")
+        route_2x = png_ihdr(PLUGIN / "resources" / "slope_route@2x.png")
         self.assertEqual(plate, (416, 624, 2))
         self.assertEqual(plate_2x, (832, 1248, 2))
         self.assertEqual(switch, (48, 56, 6))
         self.assertEqual(switch_2x, (96, 112, 6))
+        self.assertEqual(route, (48, 84, 6))
+        self.assertEqual(route_2x, (96, 168, 6))
         self.assertTrue((PLUGIN / "resources" / "slope_plate.svg").is_file())
 
     def test_resources_and_fractions(self) -> None:
@@ -66,6 +74,8 @@ class SlopeEditorTest(unittest.TestCase):
             "resources/slope_plate@2x.png",
             "resources/slope_switch.png",
             "resources/slope_switch@2x.png",
+            "resources/slope_route.png",
+            "resources/slope_route@2x.png",
             "pleat_knob.png",
             "pleat_knob@2x.png",
         ):
@@ -85,6 +95,7 @@ class SlopeEditorTest(unittest.TestCase):
             "LoadBitmap(\"slope_plate.png\")",
             "LoadBitmap(\"pleat_knob.png\")",
             "LoadBitmap(\"slope_switch.png\", 2)",
+            "LoadBitmap(\"slope_route.png\", 3)",
             "\"OFF\"",
         ):
             self.assertIn(token, view if token.startswith("0.") or token == "\"OFF\"" else source)

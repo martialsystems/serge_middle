@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="168" viewBox="0 0 96 168">
+<!-- Route switch strip: frame 0 RISE (lever left), frame 1 BOTH (lever up), frame 2 FALL (lever right). 48 by 28 per frame at 1x. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->
+<g transform="translate(0,0)"><defs><radialGradient id="rnut0" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient><linearGradient id="rbat0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient></defs>
+<polygon points="63,28 55.5,40.99 40.5,40.99 33,28 40.5,15.01 55.5,15.01" fill="url(#rnut0)" stroke="#2a2d33" stroke-width="1.2"/>
+<circle cx="48.0" cy="28.0" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>
+<path d="M48,25 L14,26.5 L14,35.5 L48,37 Z" fill="#000" fill-opacity="0.35"/>
+<path d="M48,22 L14,23.5 L14,32.5 L48,34 Z" fill="url(#rbat0)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="14" cy="28" r="6.5" fill="url(#rbat0)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48.0" cy="28.0" r="5" fill="url(#rnut0)" stroke="#2a2d33" stroke-width="0.8"/>
+</g>
+<g transform="translate(0,56)"><defs><radialGradient id="rnut1" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient><linearGradient id="rbat1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient></defs>
+<polygon points="63,28 55.5,40.99 40.5,40.99 33,28 40.5,15.01 55.5,15.01" fill="url(#rnut1)" stroke="#2a2d33" stroke-width="1.2"/>
+<circle cx="48.0" cy="28.0" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>
+<path d="M54,31 L52.5,-3 L43.5,-3 L42,31 Z" fill="#000" fill-opacity="0.35"/>
+<path d="M54,28 L52.5,-6 L43.5,-6 L42,28 Z" fill="url(#rbat1)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48" cy="-6" r="6.5" fill="url(#rbat1)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48.0" cy="28.0" r="5" fill="url(#rnut1)" stroke="#2a2d33" stroke-width="0.8"/>
+</g>
+<g transform="translate(0,112)"><defs><radialGradient id="rnut2" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient><linearGradient id="rbat2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient></defs>
+<polygon points="63,28 55.5,40.99 40.5,40.99 33,28 40.5,15.01 55.5,15.01" fill="url(#rnut2)" stroke="#2a2d33" stroke-width="1.2"/>
+<circle cx="48.0" cy="28.0" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>
+<path d="M48,37 L82,35.5 L82,26.5 L48,25 Z" fill="#000" fill-opacity="0.35"/>
+<path d="M48,34 L82,32.5 L82,23.5 L48,22 Z" fill="url(#rbat2)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="82" cy="28" r="6.5" fill="url(#rbat2)" stroke="#3a3e45" stroke-width="0.8"/>
+<circle cx="48.0" cy="28.0" r="5" fill="url(#rnut2)" stroke="#2a2d33" stroke-width="0.8"/>
+</g>
+</svg>

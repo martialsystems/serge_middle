@@ -13,6 +13,8 @@ enum EParams
   kRise = 0,
   kFall,
   kCycle,
+  kVc,
+  kRoute,
   kNumParams
 };
 

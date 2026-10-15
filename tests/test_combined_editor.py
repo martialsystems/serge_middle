@@ -29,6 +29,8 @@ PARAMS = (
     'InitDouble("Rise"',
     'InitDouble("Fall"',
     'InitBool("Cycle"',
+    'InitDouble("Slope VC"',
+    'InitInt("Route"',
 )
 
 
@@ -54,7 +56,7 @@ class CombinedEditorTest(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertGreaterEqual(float(match.group(1)), 28.0)
         header = (PLUGIN / "SergeMiddleCombined.h").read_text(encoding="utf-8")
-        names = ("kFold = 0", "kIn2", "kVcDepth", "kRise", "kFall", "kCycle", "kNumParams")
+        names = ("kFold = 0", "kIn2", "kVcDepth", "kRise", "kFall", "kCycle", "kSlopeVc", "kRoute", "kNumParams")
         positions = [header.index(name) for name in names]
         self.assertEqual(positions, sorted(positions))
         source = (PLUGIN / "SergeMiddleCombined.cpp").read_text(encoding="utf-8")
@@ -68,6 +70,8 @@ class CombinedEditorTest(unittest.TestCase):
             "GetParam(kRise)",
             "GetParam(kFall)",
             "GetParam(kCycle)",
+            "GetParam(kSlopeVc)",
+            "GetParam(kRoute)",
             "BlockMeter",
             "mMidiQueue",
         ):
@@ -112,6 +116,8 @@ class CombinedEditorTest(unittest.TestCase):
             "../SergeMiddle/resources/pleat_knob@2x.png",
             "../SlopeAC/resources/slope_switch.png",
             "../SlopeAC/resources/slope_switch@2x.png",
+            "../SlopeAC/resources/slope_route.png",
+            "../SlopeAC/resources/slope_route@2x.png",
             "../SergeMiddle/resources/fonts/Roboto-Regular.ttf",
             "FORMATS VST3",
         ):

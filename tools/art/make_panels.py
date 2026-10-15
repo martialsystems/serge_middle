@@ -273,13 +273,15 @@ def slope_plate_svg():
     o = []
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
     o.append('<!-- Slope AC plate. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
-    o.append('<!-- Lettering is the rise-and-fall mark and the legends (slope/README.md). Layout fractions match SlopeAC/SlopeView.h: knobs at x 0.30 W and 0.70 W, y 0.38 H, diameter 0.29 W; captions 0.495 H to 0.545 H; switch centre (0.30 W, 0.655 H); rate readout 0.70 W, 0.633 H to 0.677 H; jacks at y 0.785 H, x 0.18/0.39/0.61/0.82 W. Text is outlined (Liberation Sans). -->')
+    o.append('<!-- Lettering is the rise-and-fall mark and the legends (slope/README.md). Layout fractions match SlopeAC/SlopeView.h: knobs at x 0.30 W and 0.70 W, y 0.38 H, diameter 0.29 W; captions 0.495 H to 0.545 H; VC attenuverter centre (0.50 W, 0.529 H) diameter 40; route switch centre (0.481 W, 0.615 H); cycle switch centre (0.30 W, 0.655 H); rate readout 0.70 W, 0.633 H to 0.677 H; jacks at y 0.785 H, x 0.12/0.27/0.42/0.58/0.73/0.88 W. Text is outlined (Liberation Sans). -->')
     slope_body(o)
     o.append('</svg>')
     return "\n".join(o) + "\n"
 
 
 SLOPE6_X = [0.12 * W, 0.27 * W, 0.42 * W, 0.58 * W, 0.73 * W, 0.88 * W]
+VC_X, VC_Y, VC_D = 0.50 * W, 0.529 * H, 40.0
+ROUTE_X, ROUTE_Y = 0.481 * W, 0.615 * H
 
 
 def slope_body(o, combined=False):
@@ -324,6 +326,16 @@ def slope_body(o, combined=False):
     log_scale(KNOB_LX, KNOB_Y, "RISE")
     log_scale(KNOB_RX, KNOB_Y, "FALL")
     readouts(o)
+    # VC attenuverter. Noon is 0, which passes none of the VC jack. The
+    # pointer bitmap is drawn by the editor, same cap as Rise and Fall.
+    cx, cy, r = VC_X, VC_Y, VC_D / 2
+    o.append(f'<path fill="{WHITE}" d="{text_path("VC", cx, cy - r - 16, 11, BOLD, 1.6)}"/>')
+    for i, (n, txt) in enumerate(((-1, "-1"), (0, "0"), (1, "+1"))):
+        th = math.radians(-130 + 260 * (n + 1) / 2)
+        s, c = math.sin(th), math.cos(th)
+        r_out = r + (8 if i != 1 else 6)
+        o.append(f'<line x1="{f(cx+(r+1)*s)}" y1="{f(cy-(r+1)*c)}" x2="{f(cx+r_out*s)}" y2="{f(cy-r_out*c)}" stroke="{WHITE}" stroke-width="{1.3 if i != 1 else 1.0}" stroke-linecap="round"/>')
+        o.append(f'<path fill="#dfe3ea" d="{text_path(txt, cx+(r+16)*s, cy-(r+16)*c+3, 8, REG, 0.2)}"/>')
     o.append(f'<line x1="24" y1="362" x2="{W-24}" y2="362" stroke="{WHITE}" stroke-width="1.2"/>')
 
     # CYCLE switch: legend, OFF and ON, and the mounting plate behind the lever bitmap.
@@ -331,6 +343,12 @@ def slope_body(o, combined=False):
     o.append(f'<rect x="{f(SWITCH_X-27)}" y="{f(SWITCH_Y-15)}" width="54" height="30" rx="5" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>')
     o.append(f'<path fill="#dfe3ea" d="{text_path("OFF", SWITCH_X-34, SWITCH_Y+3.4, 9.5, BOLD, 0.8, "end")}"/>')
     o.append(f'<path fill="#dfe3ea" d="{text_path("ON", SWITCH_X+34, SWITCH_Y+3.4, 9.5, BOLD, 0.8, "start")}"/>')
+
+    # RISE / BOTH / FALL. The lever bitmap has three frames. BOTH is the centre.
+    o.append(f'<path fill="{WHITE}" d="{text_path("BOTH", ROUTE_X, ROUTE_Y - 22, 9, BOLD, 1.0)}"/>')
+    o.append(f'<rect x="{f(ROUTE_X-24)}" y="{f(ROUTE_Y-14)}" width="48" height="28" rx="5" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>')
+    o.append(f'<path fill="#dfe3ea" d="{text_path("RISE", ROUTE_X-30, ROUTE_Y+3.2, 8, BOLD, 0.6, "end")}"/>')
+    o.append(f'<path fill="#dfe3ea" d="{text_path("FALL", ROUTE_X+30, ROUTE_Y+3.2, 8, BOLD, 0.6, "start")}"/>')
 
     # Rate readout well, with a small cycle train above it (no lettering).
     o.append(f'<rect x="{f(RATE_X-44)}" y="{f(RATE_T+2)}" width="88" height="{f(RATE_B-RATE_T-4)}" rx="3" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>')
@@ -342,13 +360,11 @@ def slope_body(o, combined=False):
     pts.append(f"{f(tx0+60)},{ty0}")
     o.append(f'<polyline points="{" ".join(pts)}" fill="none" stroke="{WHITE}" stroke-width="1.3" stroke-linejoin="miter"/>')
 
+    # The DUSG section, on both plates: inputs IN, TRIG, VC, then outputs END, OUT, AC.
+    # IN black, TRIG red, VC blue, END red (logic 0 V or +5 V), OUT black, AC black.
+    jacks(o, ["IN", "TRIG", "VC", "END", "OUT", "AC"], ["black", "red", "blue", "red", "black", "black"], SLOPE6_X, "S" if combined else "A")
     if not combined:
-        # Serge colours: audio and slope outputs black, the trigger red (logic).
-        jacks(o, ["IN", "TRIG", "OUT", "AC"], ["black", "red", "black", "black"])
         return
-    # The DUSG section: inputs IN, TRIG, VC, then outputs END, OUT, AC.
-    # IN black, TRIG red, VC blue, END red (logic), OUT black, AC black.
-    jacks(o, ["IN", "TRIG", "VC", "END", "OUT", "AC"], ["black", "red", "blue", "red", "black", "black"], SLOPE6_X, "S")
     xm = (SLOPE6_X[2] + SLOPE6_X[3]) / 2
     o.append(f'<line x1="{f(xm)}" y1="440" x2="{f(xm)}" y2="532" stroke="{WHITE}" stroke-opacity="0.35" stroke-width="0.8" stroke-dasharray="2 3"/>')
     normals(o, [(SLOPE6_X[1], "\u2190 MIDI"), (SLOPE6_X[4], "\u2192 PLEAT VC")])
@@ -378,6 +394,52 @@ def switch_frame_svg(on: bool):
     return "\n".join(o) + "\n"
 
 
+def route_frame_svg(mode: str):
+    # One frame at @2x: 96 by 56. RISE points left, BOTH points up, FALL points right.
+    Wf, Hf = 96, 56
+    cx, cy = Wf / 2, Hf / 2
+    if mode == "rise":
+        tipx, tipy = cx - 34, cy
+    elif mode == "fall":
+        tipx, tipy = cx + 34, cy
+    else:
+        tipx, tipy = cx, cy - 34
+    dx, dy = tipx - cx, tipy - cy
+    length = math.hypot(dx, dy) or 1.0
+    px, py = -dy / length, dx / length
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{Wf}" height="{Hf}" viewBox="0 0 {Wf} {Hf}">',
+         '<defs>'
+         '<radialGradient id="nut" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/></radialGradient>'
+         '<linearGradient id="bat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/></linearGradient>'
+         '</defs>']
+    hexpts = " ".join(f"{f(cx + 15*math.cos(math.radians(60*i)))},{f(cy + 15*math.sin(math.radians(60*i)))}" for i in range(6))
+    o.append(f'<polygon points="{hexpts}" fill="url(#nut)" stroke="#2a2d33" stroke-width="1.2"/>')
+    o.append(f'<circle cx="{cx}" cy="{cy}" r="8" fill="#3b3f46" stroke="#14161a" stroke-width="1"/>')
+    # Tapered bat, perpendicular offset of 6 at the nut and 4.5 at the tip.
+    nut = [(cx + px * 6, cy + py * 6), (cx - px * 6, cy - py * 6)]
+    tip = [(tipx + px * 4.5, tipy + py * 4.5), (tipx - px * 4.5, tipy - py * 4.5)]
+    shadow = f"M{f(nut[0][0])},{f(nut[0][1]+3)} L{f(tip[0][0])},{f(tip[0][1]+3)} L{f(tip[1][0])},{f(tip[1][1]+3)} L{f(nut[1][0])},{f(nut[1][1]+3)} Z"
+    bat = f"M{f(nut[0][0])},{f(nut[0][1])} L{f(tip[0][0])},{f(tip[0][1])} L{f(tip[1][0])},{f(tip[1][1])} L{f(nut[1][0])},{f(nut[1][1])} Z"
+    o.append(f'<path d="{shadow}" fill="#000" fill-opacity="0.35"/>')
+    o.append(f'<path d="{bat}" fill="url(#bat)" stroke="#3a3e45" stroke-width="0.8"/>')
+    o.append(f'<circle cx="{f(tipx)}" cy="{f(tipy)}" r="6.5" fill="url(#bat)" stroke="#3a3e45" stroke-width="0.8"/>')
+    o.append(f'<circle cx="{cx}" cy="{cy}" r="5" fill="url(#nut)" stroke="#2a2d33" stroke-width="0.8"/>')
+    o.append('</svg>')
+    return "\n".join(o) + "\n"
+
+
+def route_svg():
+    frames = []
+    for i, mode in enumerate(("rise", "both", "fall")):
+        body = route_frame_svg(mode).split("\n", 1)[1].rsplit("</svg>", 1)[0]
+        body = body.replace('id="nut"', f'id="rnut{i}"').replace("url(#nut)", f"url(#rnut{i})")
+        body = body.replace('id="bat"', f'id="rbat{i}"').replace("url(#bat)", f"url(#rbat{i})")
+        frames.append(f'<g transform="translate(0,{i * 56})">{body}</g>')
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="168" viewBox="0 0 96 168">\n'
+            '<!-- Route switch strip: frame 0 RISE (lever left), frame 1 BOTH (lever up), frame 2 FALL (lever right). 48 by 28 per frame at 1x. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->\n'
+            + "\n".join(frames) + '\n</svg>\n')
+
+
 def switch_svg():
     # Both frames stacked vertically, OFF on top: the strip IBSwitchControl reads.
     off = switch_frame_svg(False).split("\n", 1)[1].rsplit("</svg>", 1)[0]
@@ -395,7 +457,7 @@ def middle_plate_svg():
     o = []
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{2*W}" height="{H}" viewBox="0 0 {2*W} {H}">')
     o.append('<!-- Serge Middle combined plate: PLEAT (x 0..416) and the slope (x 416..832). Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
-    o.append('<!-- Layout matches SergeMiddleCombined/PatchView.h. PLEAT: knobs (0.30, 0.38) and (0.70, 0.38) of the panel, VC DEPTH centre (253.76, 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope: knobs (0.30, 0.38) and (0.70, 0.38), switch (0.30 W, 0.655 H), jacks y 0.785 H at x 0.12/0.27/0.42/0.58/0.73/0.88 W. Text is outlined (Liberation Sans). -->')
+    o.append('<!-- Layout matches SergeMiddleCombined/PatchView.h. PLEAT: knobs (0.30, 0.38) and (0.70, 0.38) of the panel, VC DEPTH centre (253.76, 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope: knobs (0.30, 0.38) and (0.70, 0.38), VC attenuverter (0.50 W, 0.529 H) diameter 40, route switch (0.481 W, 0.615 H), cycle switch (0.30 W, 0.655 H), jacks y 0.785 H at x 0.12/0.27/0.42/0.58/0.73/0.88 W. Text is outlined (Liberation Sans). -->')
     o.append('<g>')
     pleat_body(o, combined=True)
     o.append('</g>')
@@ -438,6 +500,7 @@ def main() -> int:
         (pleat / "pleat_knob.svg", knob_svg(), (120, 120), "RGBA"),
         (slope / "slope_plate.svg", slope_plate_svg(), (W, H), "RGB"),
         (slope / "slope_switch.svg", switch_svg(), (48, 56), "RGBA"),
+        (slope / "slope_route.svg", route_svg(), (48, 84), "RGBA"),
         (combo / "middle_plate.svg", middle_plate_svg(), (2 * W, H), "RGB"),
     ]
     for path, text, (w, h), mode in jobs:

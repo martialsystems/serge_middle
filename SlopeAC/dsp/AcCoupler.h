@@ -61,4 +61,13 @@ inline double HostSample(AcCoupler& coupler, SecondHalf& half, double rise, doub
   return HostSample(coupler, AdvanceSample(half, rise, fall, host, arm, cycle).ac);
 }
 
+// Same path with the VC jack, the attenuverter, and the RISE / BOTH / FALL route.
+// route is 0 rise, 1 both, 2 fall. vcDepth 0 passes none of vc.
+inline double HostSample(AcCoupler& coupler, SecondHalf& half, double rise, double fall, double host,
+                         bool arm, bool cycle, double vc, double vcDepth, int route)
+{
+  half.SetSwitch(SwitchFromInt(route));
+  return HostSample(coupler, AdvanceSample(half, rise, fall, host, arm, cycle, vc, vcDepth).ac);
+}
+
 } // namespace slope
