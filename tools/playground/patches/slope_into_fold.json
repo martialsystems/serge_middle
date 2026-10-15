@@ -3,7 +3,7 @@
   "engine": "patch",
   "sample_rate": 48000,
   "duration_ms": 60,
-  "note": "No cables. Host audio feeds PLEAT IN 1 and slope OUT is normalled to PLEAT VC. The first half is VC depth 0. The second half is depth 1, with Cycle on.",
+  "note": "No cables. Host audio feeds PLEAT IN 1 and slope OUT is normalled to PLEAT VC. The first half is VC depth 0. The second half is depth 1, with Cycle on. Depth 1 adds slope OUT, in volts, to the fold amount. PLEAT OUT stays within ±5 V.",
   "params": {
     "fold": 1.0,
     "in2": 0.0,
@@ -28,9 +28,6 @@
     }
   ],
   "golden_abs_tol": 1e-5,
-  "known_failures": {
-    "clamp_outputs": "PLEAT OUT has no ±5 V clamp. With Cycle on and VC depth 1, slope OUT is normalled into PLEAT VC and the fold amount sweeps the knob on every cycle. pleat_out on this patch reaches about +11.7 V."
-  },
   "checks": [
     {
       "id": "depth0_matches_pleat",

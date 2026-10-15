@@ -69,13 +69,15 @@ The UI writes one atomic byte per input. The audio block copies those bytes once
 
 ## VC law
 
-This is a modelling choice. The manuals say FOLD sets the baseline as CV is added on top. They do not give an octave law. The law here is:
+This is a modelling choice. The manuals say FOLD sets the baseline as CV is added on top (La Bestia 3, page 20). They do not give a volts-per-fold figure. The law here adds the attenuated jack to the fold amount:
 
 ```text
-g = clamp(g_s * 2^(0.8 * depth * VC), 0.5, 8)
+g = clamp(g_s + depth * VC, 0.5, 8)
 ```
 
-`g_s` is the smoothed Fold knob. `VC` is volts on PLEAT VC. `depth` is VC Depth, clamped to the range 0 to 1. At depth 1, +5 V is four octaves, which is the whole knob range from 0.5 to 8. VC is not smoothed: the hardware VC takes audio. `g` is computed once per audio sample and held across the four phases. A VC of 0, or a depth of 0, returns `g_s` with no multiply, so the smoother value reaches the cells unchanged. A non-finite VC or depth is treated as 0.
+`g_s` is the smoothed Fold knob. `VC` is volts on PLEAT VC. `depth` is VC Depth, clamped to the range 0 to 1. One volt at depth 1 adds 1 to the fold amount, so a 0 V to +5 V slope moves Fold 1 up to 6. VC is not smoothed: the hardware VC takes audio. `g` is computed once per audio sample and held across the four phases. A VC of 0, or a depth of 0, returns `g_s` with no addition, so the smoother value reaches the cells unchanged. A non-finite VC or depth is treated as 0.
+
+PLEAT OUT is then hard-clamped to ±5 V. A sample already inside that rail is left as the cell path produced it, so an unmodulated Fold matches the standalone PLEAT plugin bit for bit. The clamp is what keeps a moving fold amount on the jack: the level correction assumes a steady `g`, and the decimator still holds a few samples of the previous amount.
 
 VC Depth is the modern-panel addition. The original 1970s VCM middle section had no VC attenuator. Current official Serge panels do: La Bestia 3, page 20, "MID AU", and the Random*Source VCM.
 

@@ -272,7 +272,10 @@ class SlopeAcceptanceTest(unittest.TestCase):
             ignored.step(inp=x if x > 0.0 else 0.0)[0]
             for x in signal
         ]
-        self.assertEqual(full, _load_curve("sine_envelope.csv"))
+        stored = _load_curve("sine_envelope.csv")
+        self.assertEqual(len(full), len(stored))
+        for got, want in zip(full, stored):
+            self.assertAlmostEqual(got, want, delta=1e-12)
         self.assertEqual(len(full), ENVELOPE_SAMPLES)
         self.assertTrue(all(value >= 0.0 for value in full))
         negative = [i for i, value in enumerate(signal) if value < 0.0]

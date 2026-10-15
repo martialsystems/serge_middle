@@ -39,20 +39,20 @@ class CheckError(Exception):
 
 def build_cli(build_dir: Path) -> Path:
     exe = build_dir / "playground"
-    src = HERE / "src" / "playground.cpp"
-    if exe.exists() and exe.stat().st_mtime >= src.stat().st_mtime:
-        return exe
-    cmd = [
-        "cmake",
-        "-S",
-        str(HERE),
-        "-B",
-        str(build_dir),
-        "-DCMAKE_BUILD_TYPE=Release",
-    ]
-    if sys.platform.startswith("linux") and not os.environ.get("CXX"):
-        cmd.append("-DCMAKE_CXX_COMPILER=g++")
-    subprocess.check_call(cmd)
+    cache = build_dir / "CMakeCache.txt"
+    if not cache.exists():
+        cmd = [
+            "cmake",
+            "-S",
+            str(HERE),
+            "-B",
+            str(build_dir),
+            "-DCMAKE_BUILD_TYPE=Release",
+        ]
+        if sys.platform.startswith("linux") and not os.environ.get("CXX"):
+            cmd.append("-DCMAKE_CXX_COMPILER=g++")
+        subprocess.check_call(cmd)
+    # Incremental. A DSP header change rebuilds even when playground.cpp did not.
     subprocess.check_call(["cmake", "--build", str(build_dir), "-j"])
     if exe.exists():
         return exe

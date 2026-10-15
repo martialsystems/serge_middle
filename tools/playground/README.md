@@ -84,8 +84,6 @@ Review the scope plots, then commit the CSVs.
 
 If a check fails because the current DSP does not meet the rule, add `known_failures` with the measured value and the reason. Leave the DSP alone unless the change is the point of the PR.
 
-`slope_into_fold` carries one known failure: PLEAT OUT has no ±5 V clamp. With Cycle on and VC depth 1, slope OUT is normalled into PLEAT VC and `pleat_out` reaches about +11.7 V.
-
 ## CI
 
 `.github/workflows/playground.yml` runs the same command on Ubuntu and macOS and uploads `tools/playground/out/` (the HTML index and the PNGs).

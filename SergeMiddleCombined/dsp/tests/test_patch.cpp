@@ -151,6 +151,42 @@ void TestVcNormal()
   std::printf("measure vc-normal prev_out %.17g applied_g %.17g\n", shownVc, shownG);
 }
 
+void TestFoldSum()
+{
+  Check(patch::FoldWithVc(1.0, 0.0, 5.0) == 1.0, "VC depth 0 leaves the fold knob");
+  Check(patch::FoldWithVc(1.0, 1.0, 0.0) == 1.0, "VC of 0 V leaves the fold knob");
+  Check(patch::FoldWithVc(1.0, 1.0, 5.0) == 6.0, "depth 1 adds the VC volts to the fold amount");
+  Check(patch::FoldWithVc(1.0, 0.5, 2.0) == 2.0, "depth 0.5 adds half the VC");
+  Check(patch::FoldWithVc(7.0, 1.0, 5.0) == 8.0, "the sum clamps at fold 8");
+  Check(patch::FoldWithVc(1.0, 1.0, -2.0) == 0.5, "a negative VC lowers the fold to the bottom stop");
+
+  constexpr double kFs = 48000.0;
+  constexpr int kN = 1440;
+  patch::PatchChannel channel;
+  channel.Reset(kFs);
+  patch::Routing routing;
+  double peak = 0.0;
+  double floor = 0.0;
+  bool finite = true;
+  for (int n = 0; n < kN; ++n)
+  {
+    const double t = static_cast<double>(n) / kFs;
+    const double host = std::sin(2.0 * std::acos(-1.0) * 1000.0 * t);
+    channel.Step(host, 0.0, 1.0, 0.0, 1.0, 0.005, 0.005, true, n == 0, routing);
+    const double y = channel.OutputVolts(patch::PleatOut);
+    if (!std::isfinite(y))
+      finite = false;
+    if (y > peak)
+      peak = y;
+    if (y < floor)
+      floor = y;
+  }
+  Check(finite && peak <= patch::kPleatOutLimit && floor >= -patch::kPleatOutLimit,
+        "depth 1 full-scale cycle stays within ±5 V");
+  Check(peak > 2.5, "depth 1 still folds above the unmodulated full-scale level");
+  std::printf("measure fold-sum peak %.6f floor %.6f\n", peak, floor);
+}
+
 void TestMidiGate()
 {
   constexpr double kFs = 48000.0;
@@ -593,6 +629,7 @@ int main()
 {
   TestZeroCablesMatchPleat();
   TestVcNormal();
+  TestFoldSum();
   TestMidiGate();
   TestCables();
   TestSerialize();
