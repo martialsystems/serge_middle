@@ -16,6 +16,12 @@ inline constexpr double kVcSecondsPerVolt = 0.001;
 inline constexpr double kTrigThreshold = 1.0;
 inline constexpr double kFeedbackMin = -1.0;
 inline constexpr double kFeedbackMax = 1.0;
+inline constexpr double kVcDepthMin = -1.0;
+inline constexpr double kVcDepthMax = 1.0;
+// END jack window. The circuit gate stays high for the whole rise. The jack
+// drops once OUT reaches 4 V, so an END to TRIG cord cycles instead of holding.
+inline constexpr double kEndWindowVolts = 4.0;
+inline constexpr double kEndJackHigh = 5.0;
 
 enum class Switch { Rise, Fall, Both };
 enum class State { Idle, Rising, Falling, Holding };
@@ -41,6 +47,44 @@ inline double AcVolts(double out) { return kAcCenter - out; }
 
 // Host sample. ±2.5 V is ±1. Nothing is applied after this scale.
 inline double ScaledAc(double ac) { return ac / kAcCenter; }
+
+// Two-way scale in front of the VC jack. depth 0 passes nothing. +1 passes vc.
+// -1 inverts it. A non-finite input passes nothing.
+inline double ScaleVc(double vc, double depth)
+{
+  if (!std::isfinite(vc) || !std::isfinite(depth))
+    return 0.0;
+  if (depth < kVcDepthMin)
+    depth = kVcDepthMin;
+  else if (depth > kVcDepthMax)
+    depth = kVcDepthMax;
+  if (depth == 0.0 || vc == 0.0)
+    return 0.0;
+  if (depth == 1.0)
+    return vc;
+  if (depth == -1.0)
+    return -vc;
+  return depth * vc;
+}
+
+// END jack, in volts. 0 V or +5 V. The circuit gate is 0 while falling and 1
+// otherwise. The jack is +5 V when that gate is high and OUT is below 4 V.
+inline double EndJackVolts(double endGate, double out)
+{
+  if (endGate > 0.0 && out < kEndWindowVolts)
+    return kEndJackHigh;
+  return 0.0;
+}
+
+// 0 rise, 1 both, 2 fall. Anything else is both, the constructor default.
+inline Switch SwitchFromInt(int route)
+{
+  if (route == 0)
+    return Switch::Rise;
+  if (route == 2)
+    return Switch::Fall;
+  return Switch::Both;
+}
 
 inline double RequireFinite(const char* name, double value)
 {
@@ -82,11 +126,15 @@ public:
     mFall = fall;
   }
 
+  // A segment already running keeps its count. The next segment uses the new route.
+  void SetSwitch(Switch vcSwitch) { mVcSwitch = vcSwitch; }
+
   void Reset()
   {
     mV = 0.0;
     mState = State::Idle;
     mTrigHot = false;
+    mTrigHeld = false;
     mTracking = false;
     mEndPulse = false;
     mPhase = false;
@@ -148,10 +196,14 @@ public:
     const double target = std::min(kSpan, std::fabs(inp));
     const bool edge = trig > kTrigThreshold && !mTrigHot;
     mTrigHot = trig > kTrigThreshold;
+    // A later pulse is not the gate that started this rise.
+    if (!mTrigHot)
+      mTrigHeld = false;
     mEndPulse = false;
 
     if (target > 0.0)
     {
+      // A positive IN overrides TRIG, including a hold at the top.
       mTracking = true;
       mPhase = false;
       if (mV < target)
@@ -172,8 +224,16 @@ public:
         else
           mState = State::Idle;
       }
+      else if (mState == State::Holding && !mTrigHot)
+      {
+        // The rise finished while TRIG was still high. It has gone low.
+        BeginFall(vc, vOct, feedback);
+      }
       if (mState == State::Idle && edge)
+      {
         BeginRise(vc, vOct, feedback);
+        mTrigHeld = true;
+      }
     }
 
     out = mV;
@@ -183,7 +243,12 @@ public:
     {
       mK += 1;
       if (mK >= mN)
-        BeginFall(vc, vOct, feedback);
+      {
+        if (mTrigHeld)
+          Sustain();
+        else
+          BeginFall(vc, vOct, feedback);
+      }
       else
         mV = kSpan * static_cast<double>(mK) / static_cast<double>(mN);
     }
@@ -216,6 +281,8 @@ public:
         mV = limit;
         if (target > 0.0)
           mState = State::Holding;
+        else if (mTrigHeld)
+          Sustain();
         else
           BeginFall(vc, vOct, feedback);
       }
@@ -252,6 +319,15 @@ public:
 
 private:
   bool ExactSegment(double feedback) const { return FeedbackAmount(feedback) == 0.0; }
+
+  void Sustain()
+  {
+    mState = State::Holding;
+    mV = kSpan;
+    mPhase = false;
+    mTracking = false;
+    mK = 0;
+  }
 
   void BeginRise(double vc, double vOct, double feedback)
   {
@@ -300,6 +376,7 @@ private:
   double mV = 0.0;
   State mState = State::Idle;
   bool mTrigHot = false;
+  bool mTrigHeld = false;
   bool mTracking = false;
   bool mEndPulse = false;
   bool mPhase = false;
@@ -327,6 +404,7 @@ public:
 
   void SetSampleRate(double fs) { mCircuit.SetSampleRate(fs); }
   void SetTimes(double rise, double fall) { mCircuit.SetTimes(rise, fall); }
+  void SetSwitch(Switch vcSwitch) { mCircuit.SetSwitch(vcSwitch); }
   void Reset() { mCircuit.Reset(); }
   bool EndPulse() const { return mCircuit.EndPulse(); }
   double Volts() const { return mCircuit.Volts(); }
@@ -359,15 +437,17 @@ inline double CycleHz(double rise, double fall, double fs)
 
 // One circuit sample. Host ±1 is ±5 V on IN. cycle is the end-pulse cord to
 // TRIG. arm is one 5 V trigger on this sample. A non-finite host is read as 0.
-// Every finite host keeps the values it had before that guard. VC, 1V/oct,
-// and the feedback amount stay at 0.
+// Every finite host keeps the values it had before that guard. vcDepth scales
+// vc. The default depth is 0, so the VC voltage that reaches the circuit is 0,
+// the same call this function used to make. 1V/oct and the feedback amount
+// stay at 0. The route switch is whatever SetSwitch last stored, default both.
 inline Sample AdvanceSample(SecondHalf& half, double rise, double fall, double host, bool arm,
-                            bool cycle = true)
+                            bool cycle = true, double vc = 0.0, double vcDepth = 0.0)
 {
   if (!std::isfinite(host))
     host = 0.0;
   half.SetTimes(rise, fall);
-  return half.Step(5.0 * host, arm ? 5.0 : 0.0, 0.0, 0.0, 0.0, cycle);
+  return half.Step(5.0 * host, arm ? 5.0 : 0.0, ScaleVc(vc, vcDepth), 0.0, 0.0, cycle);
 }
 
 // The raw jack sample, AC / 2.5. cycle defaults to the cord in place, which is

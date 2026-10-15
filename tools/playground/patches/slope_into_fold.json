@@ -1,0 +1,53 @@
+{
+  "name": "slope_into_fold",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 60,
+  "note": "No cables. Host audio feeds PLEAT IN 1 and slope OUT is normalled to PLEAT VC. The first half is VC depth 0. The second half is depth 1, with Cycle on. Depth 1 adds slope OUT, in volts, to the fold amount. PLEAT OUT stays within ±5 V.",
+  "params": {
+    "fold": 1.0,
+    "in2": 0.0,
+    "rise_s": 0.005,
+    "fall_s": 0.005,
+    "cycle": true,
+    "route": "both"
+  },
+  "signals": {"host": {"type": "sine", "freq_hz": 1000, "amp": 1.0}},
+  "segments": [
+    {
+      "t0_ms": 0,
+      "t1_ms": 30,
+      "reset": true,
+      "params": {"pleat_vc_depth": 0.0, "cycle": true}
+    },
+    {
+      "t0_ms": 30,
+      "t1_ms": 60,
+      "reset": true,
+      "params": {"pleat_vc_depth": 1.0, "cycle": true}
+    }
+  ],
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {
+      "id": "depth0_matches_pleat",
+      "type": "matches_other",
+      "jack": "pleat_out",
+      "t0_ms": 0,
+      "t1_ms": 30,
+      "other": "pleat_fullscale_sine",
+      "other_rate": 48000,
+      "other_jack": "out",
+      "tol": 1e-9
+    },
+    {
+      "id": "depth_changes_audio",
+      "type": "windows_differ",
+      "jack": "pleat_out",
+      "a_ms": [0, 30],
+      "b_ms": [30, 60],
+      "min_rms": 0.02
+    },
+    {"id": "slope_period", "type": "period", "jack": "slope_out", "t0_ms": 0, "t1_ms": 30, "samples": 480}
+  ]
+}

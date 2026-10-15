@@ -14,7 +14,16 @@ import math
 import unittest
 from pathlib import Path
 
-from slope.slope import FS, SPAN, VC_SECONDS_PER_VOLT, Slope
+from slope.slope import (
+    END_JACK_HIGH,
+    END_WINDOW_VOLTS,
+    FS,
+    SPAN,
+    VC_SECONDS_PER_VOLT,
+    Slope,
+    end_jack_volts,
+    scale_vc,
+)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -263,7 +272,10 @@ class SlopeAcceptanceTest(unittest.TestCase):
             ignored.step(inp=x if x > 0.0 else 0.0)[0]
             for x in signal
         ]
-        self.assertEqual(full, _load_curve("sine_envelope.csv"))
+        stored = _load_curve("sine_envelope.csv")
+        self.assertEqual(len(full), len(stored))
+        for got, want in zip(full, stored):
+            self.assertAlmostEqual(got, want, delta=1e-12)
         self.assertEqual(len(full), ENVELOPE_SAMPLES)
         self.assertTrue(all(value >= 0.0 for value in full))
         negative = [i for i, value in enumerate(signal) if value < 0.0]
@@ -397,6 +409,113 @@ class SlopeAcceptanceTest(unittest.TestCase):
         floored, floored_high, _x = _period(_free_run(vc=1000.0, n=16))
         self.assertEqual((floored, floored_high), (2, 1))
 
+    def test_attenuverter_default_passes_nothing(self) -> None:
+        self.assertEqual(scale_vc(5.0, 0.0), 0.0)
+        self.assertEqual(scale_vc(0.0, 1.0), 0.0)
+        self.assertEqual(scale_vc(1.25, 1.0), 1.25)
+        self.assertEqual(scale_vc(1.25, -1.0), -1.25)
+        self.assertEqual(scale_vc(2.0, 0.5), 1.0)
+        self.assertEqual(scale_vc(2.0, 4.0), 2.0)
+        self.assertEqual(scale_vc(float("nan"), 1.0), 0.0)
+        self.assertEqual(scale_vc(1.0, float("inf")), 0.0)
+        plain = _free_run()
+        muted = _free_run(vc=scale_vc(5.0, 0.0), vc_switch="rise")
+        unity = _free_run(vc=scale_vc(1.0, 1.0), vc_switch="both", n=2000)
+        inverted = _free_run(vc=scale_vc(1.0, -1.0), vc_switch="both", n=3000)
+        self.assertEqual(muted, plain)
+        self.assertEqual(_period(unity)[:2], (384, 192))
+        self.assertEqual(_period(inverted)[:2], (576, 288))
+
+    def test_held_trig_sustains_at_the_top(self) -> None:
+        # The rise finishes at sample 240. A gate that is still high holds at +5 V.
+        # It does not wait until OUT passes 4 V, and it does not start the fall early.
+        held = Slope(RISE, FALL)
+        outs = []
+        for i in range(500):
+            outs.append(held.step(trig=5.0 if i < 300 else 0.0)[0])
+        for i in range(240):
+            self.assertEqual(outs[i], SPAN * i / 240)
+        for i in range(240, 300):
+            self.assertEqual(outs[i], SPAN)
+        self.assertEqual(outs[300], SPAN)
+        self.assertLess(outs[301], SPAN)
+        self.assertEqual(outs[100], SPAN * 100 / 240)
+
+        # A gate that ends during the rise, before and after the old 4 V mark, does not sustain.
+        for release in (10, 200):
+            short = Slope(RISE, FALL)
+            values = [short.step(trig=5.0 if i < release else 0.0)[0] for i in range(500)]
+            self.assertEqual(values[200], SPAN * 200 / 240)
+            self.assertEqual(values[240], SPAN)
+            self.assertLess(values[241], SPAN)
+            self.assertGreater(values[241], 0.0)
+
+        # Two-sample rise. A 10-sample gate is still high at the top, so it holds.
+        fast = Slope(2.0 / FS, FALL)
+        fast_out = [fast.step(trig=5.0 if i < 10 else 0.0)[0] for i in range(20)]
+        self.assertEqual(fast_out[0], 0.0)
+        self.assertEqual(fast_out[1], SPAN / 2)
+        for i in range(2, 10):
+            self.assertEqual(fast_out[i], SPAN)
+        self.assertEqual(fast_out[10], SPAN)
+        self.assertLess(fast_out[11], SPAN)
+
+    def test_retrigger_during_hold_and_fall_is_ignored(self) -> None:
+        def run(extra: int) -> list[float]:
+            slope = Slope(RISE, FALL)
+            outs = []
+            for i in range(700):
+                high = i < 300 or i == extra
+                outs.append(slope.step(trig=5.0 if high else 0.0)[0])
+            return outs
+
+        quiet = run(-1)
+        during_fall = run(400)
+        during_rise = run(100)
+        self.assertEqual(during_fall, quiet)
+        # Sample 100 is still inside the original gate, so this is the same hold.
+        self.assertEqual(during_rise, quiet)
+        self.assertEqual(quiet[250], SPAN)
+        self.assertLess(quiet[400], SPAN)
+        self.assertGreater(quiet[400], 0.0)
+
+    def test_input_overrides_a_held_trig(self) -> None:
+        slope = Slope(RISE, FALL)
+        outs = []
+        for i in range(500):
+            outs.append(slope.step(inp=3.0 if i < 400 else 0.0, trig=5.0)[0])
+        self.assertEqual(outs[144], 3.0)
+        self.assertEqual(outs[400], 3.0)
+        self.assertTrue(all(value == 3.0 for value in outs[144:401]))
+        self.assertLess(outs[401], 3.0)
+        self.assertLess(max(outs), SPAN)
+
+    def test_end_jack_is_zero_or_five(self) -> None:
+        self.assertEqual(END_WINDOW_VOLTS, 4.0)
+        self.assertEqual(END_JACK_HIGH, 5.0)
+        self.assertEqual(end_jack_volts(1.0, 0.0), 5.0)
+        self.assertEqual(end_jack_volts(1.0, 3.9), 5.0)
+        self.assertEqual(end_jack_volts(1.0, 4.0), 0.0)
+        self.assertEqual(end_jack_volts(1.0, 5.0), 0.0)
+        self.assertEqual(end_jack_volts(0.0, 2.0), 0.0)
+        slope = Slope(RISE, FALL)
+        seen_high = False
+        seen_low = False
+        for i in range(500):
+            out, gate = slope.step(trig=5.0 if i == 0 else 0.0, end_to_trig=True)
+            jack = end_jack_volts(gate, out)
+            self.assertIn(jack, (0.0, 5.0))
+            if out == 0.0:
+                self.assertEqual(jack, 5.0)
+            if out == SPAN:
+                self.assertEqual(jack, 0.0)
+                self.assertEqual(gate, 0.0)
+            if 0.0 < out < 4.0 and gate == 1.0:
+                seen_high = jack == 5.0
+            if out > 4.0:
+                seen_low = jack == 0.0
+        self.assertTrue(seen_high and seen_low)
+
     def test_second_run_matches_sample_for_sample(self) -> None:
         self.assertEqual(_free_run(), _free_run())
         self.assertEqual(_rise_until_five(0.5), _rise_until_five(0.5))
@@ -426,6 +545,10 @@ class SlopeAcceptanceTest(unittest.TestCase):
             "VC +1 V, switch BOTH | period 384 samples, END high 192",
             "VC -1 V, switch BOTH | period 576 samples, END high 288",
             "period 240 samples",
+            "attenuverter depth 0 | VC jack passes 0 V",
+            "held TRIG, 5 ms rise, high through sample 299 | OUT is +5 V on samples 240 through 299",
+            "END jack at idle | +5 V",
+            "END jack at OUT +5 V | 0 V",
         ):
             self.assertIn(phrase, golden)
         for stale in (

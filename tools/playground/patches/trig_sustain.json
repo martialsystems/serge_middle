@@ -1,0 +1,23 @@
+{
+  "name": "trig_sustain",
+  "engine": "slope",
+  "sample_rate": 48000,
+  "duration_ms": 20,
+  "note": "TRIG stays high through sample 299. The rise is 5 ms, so OUT holds at +5 V until the gate goes low. A level that ended during the rise would not hold.",
+  "params": {"rise_s": 0.005, "fall_s": 0.005, "cycle": false, "route": "both"},
+  "signals": {
+    "trig": {"type": "gate", "high": 5.0, "spans_samples": [[0, 300]]}
+  },
+  "golden_abs_tol": 1e-9,
+  "checks": [
+    {
+      "id": "sustain_at_5v",
+      "type": "oneshot",
+      "jack": "out",
+      "rise_samples": 240,
+      "hold_last": 300,
+      "fall_samples": 240,
+      "tol": 1e-9
+    }
+  ]
+}

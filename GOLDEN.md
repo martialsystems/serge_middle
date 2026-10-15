@@ -133,3 +133,8 @@ One half, `slope/slope.py`. fs = 48,000. OUT is 0 V to +5 V. Reference knobs: ri
 | Cycle default | off |
 | rise 0.4 ms, fall 1.0 ms, 48 kHz period | 67 samples, 716.417910 Hz |
 | rise 0.4 ms, fall 1.0 ms, 44.1 kHz period | 62 samples, 711.290323 Hz |
+| attenuverter depth 0 | VC jack passes 0 V |
+| held TRIG, 5 ms rise, high through sample 299 | OUT is +5 V on samples 240 through 299 |
+| TRIG low before sample 240 | no sustain; sample 200 is 5 * 200 / 240 |
+| END jack at idle | +5 V |
+| END jack at OUT +5 V | 0 V |

@@ -46,6 +46,9 @@ class SecondHalf:
     def set_times(self, rise: float, fall: float) -> None:
         self._circuit.set_times(rise, fall)
 
+    def set_vc_switch(self, vc_switch: str) -> None:
+        self._circuit.set_vc_switch(vc_switch)
+
     def reset(self) -> None:
         self._circuit.reset()
 

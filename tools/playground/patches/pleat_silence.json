@@ -1,0 +1,14 @@
+{
+  "name": "pleat_silence",
+  "engine": "pleat",
+  "sample_rate": 48000,
+  "duration_ms": 80,
+  "note": "A silent input stays silent while IN 2 is held at +1.5 V. The cells subtract C^6(s), so the offset does not thump the output.",
+  "params": {"fold": 3.0, "in2": 1.5},
+  "signals": {"host": {"type": "silence"}},
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {"id": "silent", "type": "silent", "jack": "out", "max_abs": 1e-9},
+    {"id": "in2_held", "type": "hold", "jack": "in2", "t0_ms": 0, "t1_ms": 80, "volts": 1.5, "tol": 1e-12}
+  ]
+}

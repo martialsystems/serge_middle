@@ -396,6 +396,135 @@ void TestCoupler()
   Check(std::fabs(pp - 2.0) <= 0.04, "coupled 5 ms cycle: peak-to-peak within 2% of 2");
 }
 
+void TestVcRouteAndHold()
+{
+  const double fs = 48000.0;
+  slope::SecondHalf muted(0.005, 0.005, fs);
+  slope::SecondHalf plain(0.005, 0.005, fs);
+  bool depth0 = true;
+  for (int i = 0; i < 600; ++i)
+  {
+    muted.SetSwitch(slope::Switch::Rise);
+    const auto scaled = muted.Step(0.0, i == 0 ? 5.0 : 0.0, slope::ScaleVc(5.0, 0.0), 0.0, 0.0, true);
+    const auto bare = plain.Step(0.0, i == 0 ? 5.0 : 0.0, 0.0, 0.0, 0.0, true);
+    depth0 = depth0 && scaled.out == bare.out && scaled.end == bare.end && scaled.ac == bare.ac;
+  }
+  Check(depth0, "VC depth 0 matches a VC of 0 V");
+  Check(slope::ScaleVc(1.25, 1.0) == 1.25 && slope::ScaleVc(1.25, -1.0) == -1.25, "attenuverter +1 and -1");
+  Check(slope::ScaleVc(2.0, 0.5) == 1.0 && slope::ScaleVc(5.0, 0.0) == 0.0, "attenuverter half and zero");
+  Check(slope::ScaleVc(std::numeric_limits<double>::quiet_NaN(), 1.0) == 0.0, "non-finite VC passes nothing");
+
+  auto periodOf = [fs](double vc, slope::Switch route) {
+    slope::SecondHalf half(0.005, 0.005, fs);
+    half.SetSwitch(route);
+    int prev = -1;
+    int gap = -1;
+    for (int i = 0; i < 4000; ++i)
+    {
+      const auto sample = half.Step(0.0, i == 0 ? 5.0 : 0.0, vc, 0.0, 0.0, true);
+      if (sample.out != 0.0)
+        continue;
+      if (prev >= 0 && gap < 0)
+        gap = i - prev;
+      prev = i;
+    }
+    return gap;
+  };
+  Check(periodOf(slope::ScaleVc(1.0, 1.0), slope::Switch::Both) == 384, "depth +1, BOTH, period 384");
+  Check(periodOf(slope::ScaleVc(1.0, 1.0), slope::Switch::Rise) == 432, "depth +1, RISE, period 432");
+  Check(periodOf(slope::ScaleVc(1.0, 1.0), slope::Switch::Fall) == 432, "depth +1, FALL, period 432");
+  Check(slope::SwitchFromInt(0) == slope::Switch::Rise && slope::SwitchFromInt(1) == slope::Switch::Both
+            && slope::SwitchFromInt(2) == slope::Switch::Fall && slope::SwitchFromInt(9) == slope::Switch::Both,
+        "route integers");
+
+  slope::SecondHalf held(0.005, 0.005, fs);
+  bool riseExact = true;
+  bool topped = true;
+  bool released = false;
+  for (int i = 0; i < 500; ++i)
+  {
+    const auto sample = held.Step(0.0, i < 300 ? 5.0 : 0.0);
+    if (i < 240)
+      riseExact = riseExact && sample.out == slope::kSpan * static_cast<double>(i) / 240.0;
+    if (i >= 240 && i < 300)
+      topped = topped && sample.out == 5.0;
+    if (i == 301)
+      released = sample.out < 5.0;
+  }
+  Check(riseExact && topped && released, "held TRIG stays at +5 V from sample 240 through 299");
+
+  slope::SecondHalf early(0.005, 0.005, fs);
+  bool noEarlyHold = true;
+  for (int i = 0; i < 242; ++i)
+  {
+    const auto sample = early.Step(0.0, i < 200 ? 5.0 : 0.0);
+    if (i <= 240)
+      noEarlyHold = noEarlyHold && sample.out == slope::kSpan * static_cast<double>(i) / 240.0;
+    if (i == 241)
+      noEarlyHold = noEarlyHold && sample.out < 5.0;
+  }
+  Check(noEarlyHold, "a gate that ends before the top does not sustain");
+
+  slope::SecondHalf pulsed(0.005, 0.005, fs);
+  slope::SecondHalf quiet(0.005, 0.005, fs);
+  bool pulseIgnored = true;
+  for (int i = 0; i < 480; ++i)
+  {
+    const bool extra = i == 0 || i == 100 || i == 239 || i == 240 || i == 300;
+    const auto noisy = pulsed.Step(0.0, extra ? 5.0 : 0.0, 0.0, 0.0, 0.0, true);
+    const auto bare = quiet.Step(0.0, i == 0 ? 5.0 : 0.0, 0.0, 0.0, 0.0, true);
+    pulseIgnored = pulseIgnored && noisy.out == bare.out && noisy.end == bare.end;
+  }
+  Check(pulseIgnored, "a pulse during the rise or the fall does not hold or retrigger");
+
+  slope::SecondHalf fast(2.0 / fs, 0.005, fs);
+  bool fastHold = true;
+  for (int i = 0; i < 16; ++i)
+  {
+    const auto sample = fast.Step(0.0, i < 10 ? 5.0 : 0.0);
+    if (i >= 2 && i < 10)
+      fastHold = fastHold && sample.out == 5.0;
+    if (i == 11)
+      fastHold = fastHold && sample.out < 5.0;
+  }
+  Check(fastHold, "a 2-sample rise holds a 10-sample gate at +5 V");
+
+  slope::SecondHalf tracked(0.005, 0.005, fs);
+  bool follow = true;
+  for (int i = 0; i < 420; ++i)
+  {
+    const auto sample = tracked.Step(i < 400 ? 3.0 : 0.0, 5.0);
+    if (i == 144 || i == 400)
+      follow = follow && sample.out == 3.0;
+    if (i == 401)
+      follow = follow && sample.out < 3.0;
+    if (sample.out >= 5.0)
+      follow = false;
+  }
+  Check(follow, "IN overrides a held TRIG");
+
+  Check(slope::EndJackVolts(1.0, 0.0) == 5.0 && slope::EndJackVolts(1.0, 5.0) == 0.0
+            && slope::EndJackVolts(0.0, 1.0) == 0.0,
+        "END jack is +5 V at idle and 0 V at +5 V");
+
+  slope::AcCoupler coupler;
+  coupler.SetSampleRate(fs);
+  coupler.Reset();
+  slope::AcCoupler reference;
+  reference.SetSampleRate(fs);
+  reference.Reset();
+  slope::SecondHalf withKnob(0.005, 0.005, fs);
+  slope::SecondHalf without(0.005, 0.005, fs);
+  bool pluginSame = true;
+  for (int i = 0; i < 500; ++i)
+  {
+    const double y = slope::HostSample(coupler, withKnob, 0.005, 0.005, 0.0, i == 0, true, 3.0, 0.0, 0);
+    const double y0 = slope::HostSample(reference, without, 0.005, 0.005, 0.0, i == 0, true);
+    pluginSame = pluginSame && y == y0;
+  }
+  Check(pluginSame, "HostSample depth 0 matches the unscaled call");
+}
+
 void TestReadout()
 {
   char buf[32];
@@ -425,6 +554,7 @@ int main()
   TestPluginSample();
   TestCycleSwitch();
   TestCoupler();
+  TestVcRouteAndHold();
   TestReadout();
   if (gFailures != 0)
   {

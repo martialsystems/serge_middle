@@ -87,7 +87,7 @@ Project name: `SergeMiddle`. Window: 416 by 624, the prototype PLEAT plate, two 
 
 ## Slope AC
 
-`SlopeAC/` is the second half. Rise and Fall default to 5 ms. Cycle defaults to off. The host sample is the coupled AC / 2.5, `B(AC - 2.5) / 2.5`, with the locked 10 Hz block. The editor is the 416 by 624 plate: Rise, Fall, the Cycle switch, and a rate readout. Format: VST3, via Unix Makefiles. The PLEAT bundle stays `build/SergeMiddle/out/SergeMiddle.vst3`.
+`SlopeAC/` is the second half. Rise and Fall default to 5 ms. Cycle defaults to off. VC, the attenuverter, defaults to 0. Route defaults to BOTH. The host sample is the coupled AC / 2.5, `B(AC - 2.5) / 2.5`, with the locked 10 Hz block. The editor is the 416 by 624 plate: Rise, Fall, the VC knob, the RISE / BOTH / FALL switch, the Cycle switch, and a rate readout. Format: VST3, via Unix Makefiles. The same parameters are what an APP target would read. The PLEAT bundle stays `build/SergeMiddle/out/SergeMiddle.vst3`.
 
 From the repository root:
 

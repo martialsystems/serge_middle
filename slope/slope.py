@@ -4,8 +4,10 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 Output runs from 0 V to +5 V. Rise time and fall time are the linear
 times for that full excursion. A trigger starts a rise from 0. At +5 V
-the slope falls. At 0 V it emits one end-pulse and waits. Triggers
-during the rise or the fall are ignored.
+the slope falls, unless the trigger that started the rise is still
+high, in which case it holds at +5 V until TRIG goes low. At 0 V it
+emits one end-pulse and waits. A later pulse during the rise, the
+hold, or the fall is ignored.
 
 Each sample emits the voltage held from the previous update, then
 applies this sample's inputs. END is low only while falling.
@@ -33,6 +35,13 @@ VC_SECONDS_PER_VOLT = 0.001
 TRIG_THRESHOLD = 1.0
 FEEDBACK_MIN = -1.0
 FEEDBACK_MAX = 1.0
+# Attenuverter stops. The plugins default the knob to 0, which passes no VC.
+VC_DEPTH_MIN = -1.0
+VC_DEPTH_MAX = 1.0
+# END jack window. The circuit gate stays high for the whole rise. The jack
+# drops once OUT reaches 4 V, so an END to TRIG cord cycles instead of holding.
+END_WINDOW_VOLTS = 4.0
+END_JACK_HIGH = 5.0
 
 _IDLE = "idle"
 _RISING = "rising"
@@ -64,11 +73,15 @@ class Slope:
         self.fall = _require_finite("fall", fall)
         if self.rise <= 0.0 or self.fall <= 0.0:
             raise ValueError("rise and fall must be positive")
+        self.set_vc_switch(vc_switch)
+        self.t_min = 1.0 / self.fs
+        self.reset()
+
+    def set_vc_switch(self, vc_switch: str) -> None:
+        """Route VC to the rise, the fall, or both. A segment already running keeps its count."""
         if vc_switch not in ("rise", "fall", "both"):
             raise ValueError("vc_switch must be rise, fall, or both")
         self.vc_switch = vc_switch
-        self.t_min = 1.0 / self.fs
-        self.reset()
 
     def set_times(self, rise: float, fall: float) -> None:
         """Replace the knob times. The sample already in a segment keeps its count."""
@@ -83,6 +96,7 @@ class Slope:
         self.v = 0.0
         self.state = _IDLE
         self.trig_hot = False
+        self.trig_held = False
         self.tracking = False
         self.end_pulse = False
         self.phase = False
@@ -135,6 +149,14 @@ class Slope:
     def _exact_segment(self, feedback: float) -> bool:
         return self.feedback_amount(feedback) == 0.0
 
+    def _sustain(self) -> None:
+        """Hold at +5 V. TRIG is still high, so the fall has not started."""
+        self.state = _HOLDING
+        self.v = SPAN
+        self.phase = False
+        self.tracking = False
+        self.k = 0
+
     def _begin_rise(self, vc: float, v_oct: float, feedback: float) -> None:
         self.state = _RISING
         self.v = 0.0
@@ -178,6 +200,10 @@ class Slope:
         ``feedback`` scales the patch from OUT to the VC jack, from -1 to +1.
         ``end_to_trig`` is the cable from the end-pulse back to TRIG.
         IN is full-wave rectified. A positive IN overrides TRIG.
+        A TRIG level that has stayed above 1 V since the edge that started
+        the rise holds at +5 V until it goes low. A later pulse does not
+        hold, and it does not start another rise until the output is
+        back at 0 V.
         """
         inp = _require_finite("inp", inp)
         trig = _require_finite("trig", trig)
@@ -188,9 +214,12 @@ class Slope:
         target = min(SPAN, abs(inp))
         edge = trig > TRIG_THRESHOLD and not self.trig_hot
         self.trig_hot = trig > TRIG_THRESHOLD
+        if not self.trig_hot:
+            self.trig_held = False
         self.end_pulse = False
 
         if target > 0.0:
+            # A positive IN overrides TRIG, including a hold at the top.
             self.tracking = True
             self.phase = False
             if self.v < target:
@@ -207,8 +236,12 @@ class Slope:
                     self.state = _FALLING
                 else:
                     self.state = _IDLE
+            elif self.state == _HOLDING and not self.trig_hot:
+                # The rise finished while TRIG was still high. It has gone low.
+                self._begin_fall(vc, v_oct, feedback)
             if self.state == _IDLE and edge:
                 self._begin_rise(vc, v_oct, feedback)
+                self.trig_held = True
 
         out = self.v
         end_gate = 0.0 if self.state == _FALLING else 1.0
@@ -216,7 +249,10 @@ class Slope:
         if self.state == _RISING and self._hold_exact(vc, v_oct, feedback):
             self.k += 1
             if self.k >= self.n:
-                self._begin_fall(vc, v_oct, feedback)
+                if self.trig_held:
+                    self._sustain()
+                else:
+                    self._begin_fall(vc, v_oct, feedback)
             else:
                 self.v = SPAN * self.k / self.n
         elif self.state == _FALLING and self._hold_exact(vc, v_oct, feedback):
@@ -238,6 +274,8 @@ class Slope:
                 self.v = limit
                 if target > 0.0:
                     self.state = _HOLDING
+                elif self.trig_held:
+                    self._sustain()
                 else:
                     self._begin_fall(vc, v_oct, feedback)
         elif self.state == _FALLING:
@@ -256,3 +294,36 @@ class Slope:
                     self.state = _HOLDING
 
         return out, end_gate
+
+
+def scale_vc(vc: float, depth: float) -> float:
+    """Two-way scale in front of the VC jack.
+
+    ``depth`` is the attenuverter, clamped to [-1, +1]. 0 passes nothing.
+    +1 passes ``vc``. -1 inverts it. A non-finite input passes nothing.
+    """
+    if not math.isfinite(vc) or not math.isfinite(depth):
+        return 0.0
+    if depth < VC_DEPTH_MIN:
+        depth = VC_DEPTH_MIN
+    elif depth > VC_DEPTH_MAX:
+        depth = VC_DEPTH_MAX
+    if depth == 0.0 or vc == 0.0:
+        return 0.0
+    if depth == 1.0:
+        return vc
+    if depth == -1.0:
+        return -vc
+    return depth * vc
+
+
+def end_jack_volts(end_gate: float, out: float) -> float:
+    """END jack, in volts. 0 V or +5 V.
+
+    The circuit gate is 0 while falling and 1 otherwise. The jack is +5 V
+    when that gate is high and OUT is below 4 V, otherwise 0 V. Idle OUT
+    of 0 V is +5 V. At +5 V, including a TRIG sustain, the jack is 0 V.
+    """
+    if end_gate > 0.0 and out < END_WINDOW_VOLTS:
+        return END_JACK_HIGH
+    return 0.0

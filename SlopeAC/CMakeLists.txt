@@ -24,6 +24,8 @@ iplug_add_plugin(${PROJECT_NAME}
     resources/slope_plate@2x.png
     resources/slope_switch.png
     resources/slope_switch@2x.png
+    resources/slope_route.png
+    resources/slope_route@2x.png
     ../SergeMiddle/resources/pleat_knob.png
     ../SergeMiddle/resources/pleat_knob@2x.png
   FORMATS VST3

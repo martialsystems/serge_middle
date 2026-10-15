@@ -1,0 +1,15 @@
+{
+  "name": "pleat_fullscale_sine",
+  "engine": "pleat",
+  "sample_rate": 48000,
+  "sample_rates": [44100, 48000, 96000],
+  "duration_ms": 40,
+  "note": "Host ±1 is ±2.5 V. At Fold 1 a full-scale sine is calibrated to peak near that level, and the output block leaves no DC.",
+  "params": {"fold": 1.0, "in2": 0.0},
+  "signals": {"host": {"type": "sine", "freq_hz": 1000, "amp": 1.0}},
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {"id": "level", "type": "peak_abs", "jack": "out", "skip_ms": 15, "min": 2.2, "max": 2.8},
+    {"id": "no_dc", "type": "mean_abs", "jack": "out", "skip_ms": 15, "max": 0.02}
+  ]
+}

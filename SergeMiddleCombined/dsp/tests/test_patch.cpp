@@ -151,6 +151,42 @@ void TestVcNormal()
   std::printf("measure vc-normal prev_out %.17g applied_g %.17g\n", shownVc, shownG);
 }
 
+void TestFoldSum()
+{
+  Check(patch::FoldWithVc(1.0, 0.0, 5.0) == 1.0, "VC depth 0 leaves the fold knob");
+  Check(patch::FoldWithVc(1.0, 1.0, 0.0) == 1.0, "VC of 0 V leaves the fold knob");
+  Check(patch::FoldWithVc(1.0, 1.0, 5.0) == 6.0, "depth 1 adds the VC volts to the fold amount");
+  Check(patch::FoldWithVc(1.0, 0.5, 2.0) == 2.0, "depth 0.5 adds half the VC");
+  Check(patch::FoldWithVc(7.0, 1.0, 5.0) == 8.0, "the sum clamps at fold 8");
+  Check(patch::FoldWithVc(1.0, 1.0, -2.0) == 0.5, "a negative VC lowers the fold to the bottom stop");
+
+  constexpr double kFs = 48000.0;
+  constexpr int kN = 1440;
+  patch::PatchChannel channel;
+  channel.Reset(kFs);
+  patch::Routing routing;
+  double peak = 0.0;
+  double floor = 0.0;
+  bool finite = true;
+  for (int n = 0; n < kN; ++n)
+  {
+    const double t = static_cast<double>(n) / kFs;
+    const double host = std::sin(2.0 * std::acos(-1.0) * 1000.0 * t);
+    channel.Step(host, 0.0, 1.0, 0.0, 1.0, 0.005, 0.005, true, n == 0, routing);
+    const double y = channel.OutputVolts(patch::PleatOut);
+    if (!std::isfinite(y))
+      finite = false;
+    if (y > peak)
+      peak = y;
+    if (y < floor)
+      floor = y;
+  }
+  Check(finite && peak <= patch::kPleatOutLimit && floor >= -patch::kPleatOutLimit,
+        "depth 1 full-scale cycle stays within ±5 V");
+  Check(peak > 2.5, "depth 1 still folds above the unmodulated full-scale level");
+  std::printf("measure fold-sum peak %.6f floor %.6f\n", peak, floor);
+}
+
 void TestMidiGate()
 {
   constexpr double kFs = 48000.0;
@@ -523,6 +559,67 @@ void TestEndJack()
   Check(cableCount >= 3 && cycleCount >= 3, "END to TRIG and the Cycle switch both repeat");
   Check(named == 480 && cyclePeriod == named, "Cycle switch period is 480 samples");
   Check(cablePeriod == cyclePeriod + 1, "END to TRIG period is one sample longer than Cycle");
+
+  // Depth 0 ignores a slope VC cord. END stays +5 V through this part of the rise,
+  // so the cord is a constant +5 V and the exact-sample count does not drop out.
+  auto atSample = [](double depth, int route) {
+    patch::PatchChannel channel;
+    channel.Reset(kFs);
+    channel.PrimeOutput(patch::SlopeEnd, patch::kGateVolts);
+    patch::Routing routing;
+    routing.Connect(patch::SlopeEnd, patch::SlopeVc);
+    for (int n = 0; n <= 60; ++n)
+      channel.Step(0.0, 0.0, 1.0, 0.0, 0.0, 0.005, 0.005, true, n == 0, routing, depth, route);
+    return channel.OutputVolts(patch::SlopeOut);
+  };
+  const double muted = atSample(0.0, 1);
+  const double both = atSample(1.0, 1);
+  const double riseOnly = atSample(1.0, 0);
+  const double fallOnly = atSample(1.0, 2);
+  const double inverted = atSample(-1.0, 1);
+  // +5 V floors a 5 ms segment to one sample. RISE is then on the 5 ms fall.
+  // BOTH floors the fall too, so sample 60 is not that same fall. FALL ignores
+  // the cord on the way up. Depth -1 lengthens the rise to 10 ms.
+  Check(muted == 5.0 * 60.0 / 240.0, "slope VC depth 0 stays on the 5 ms stair at sample 60");
+  Check(fallOnly == muted, "FALL leaves the rise off the VC cord");
+  Check(riseOnly > 3.0 && riseOnly < 4.0, "RISE applies +5 V and is falling at sample 60");
+  Check(both == 5.0 / 240.0 && both != riseOnly, "BOTH shortens the fall as well");
+  Check(inverted == 0.625 && inverted != both, "slope VC depth -1 lengthens the rise");
+  std::printf("measure slope-vc sample60 muted %.6f both %.6f rise %.6f fall %.6f inv %.6f\n",
+              muted, both, riseOnly, fallOnly, inverted);
+
+  patch::PatchChannel shortGate;
+  shortGate.Reset(kFs);
+  patch::Routing openGate;
+  bool finishedRise = true;
+  bool noPlateau = true;
+  for (int n = 0; n < 242; ++n)
+  {
+    const double gate = n < 30 ? patch::kGateVolts : 0.0;
+    shortGate.Step(0.0, gate, 1.0, 0.0, 0.0, 0.005, 0.005, false, false, openGate);
+    const double out = shortGate.OutputVolts(patch::SlopeOut);
+    if (n <= 240)
+      finishedRise = finishedRise && out == 5.0 * static_cast<double>(n) / 240.0;
+    if (n == 241)
+      noPlateau = out < 5.0 && out > 0.0;
+  }
+  Check(finishedRise && noPlateau, "a 30-sample gate finishes the rise and does not hold");
+
+  patch::PatchChannel fast;
+  fast.Reset(kFs);
+  bool fastHold = false;
+  bool fastRelease = false;
+  for (int n = 0; n < 20; ++n)
+  {
+    const double gate = n < 10 ? patch::kGateVolts : 0.0;
+    fast.Step(0.0, gate, 1.0, 0.0, 0.0, 2.0 / kFs, 0.005, false, false, openGate);
+    const double out = fast.OutputVolts(patch::SlopeOut);
+    if (n == 4)
+      fastHold = out == 5.0;
+    if (n == 12)
+      fastRelease = out < 5.0;
+  }
+  Check(fastHold && fastRelease, "a short gate holds once a 2-sample rise reaches +5 V");
   std::printf("measure end-cable period %d cycle-switch period %d first-peaks %d %d\n",
               cablePeriod, cyclePeriod, cableFirst, cycleFirst);
 }
@@ -532,6 +629,7 @@ int main()
 {
   TestZeroCablesMatchPleat();
   TestVcNormal();
+  TestFoldSum();
   TestMidiGate();
   TestCables();
   TestSerialize();

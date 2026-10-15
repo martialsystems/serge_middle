@@ -14,8 +14,10 @@ Window: 832 by 624. Format: VST3, via Unix Makefiles. The plate art holds the le
 | 3 | Rise | 0.0001 s to 10 s, default 5 ms, same display as Slope AC |
 | 4 | Fall | 0.0001 s to 10 s, default 5 ms, same display as Slope AC |
 | 5 | Cycle | off by default |
+| 6 | Slope VC | -1 to +1, default 0, linear. Attenuverter in front of the slope VC jack |
+| 7 | Route | 0 RISE, 1 BOTH, 2 FALL, default BOTH |
 
-Fold and IN 2 DC are smoothed once per audio sample, shared by the left and right channels, and held across the four oversampled phases. Rise and Fall are read per sample. Cycle is read once per block. VC Depth is read once per block and is not smoothed.
+Fold and IN 2 DC are smoothed once per audio sample, shared by the left and right channels, and held across the four oversampled phases. Rise, Fall, Slope VC, and Route are read per sample. Cycle is read once per block. VC Depth is read once per block and is not smoothed. Slope VC and Route were appended after Cycle so a project saved before them restores the first six parameters and loads these two at the defaults. Default 0 and BOTH pass no slope VC, which is the unpatched jack.
 
 ## Jacks
 
@@ -27,19 +29,19 @@ Inputs and outputs are separate lists.
 | PLEAT IN 2 | DC coupled. Not smoothed. Own 63-tap upsampler. Clamped to ±10 V |
 | PLEAT VC | Volts into the fold law below. Not smoothed |
 | SLOPE IN | Volts into the slope input. No extra gain |
-| SLOPE TRIG | Volts. A rising edge starts a slope. A held voltage near the top holds at +5 V |
-| SLOPE VC | Volts into the slope time control |
+| SLOPE TRIG | Volts. A rising edge starts a slope. A level that has stayed high since that edge holds at +5 V until it goes low. A later pulse does not hold, and a new edge is ignored until the output is back at 0 V. A signal on SLOPE IN overrides TRIG |
+| SLOPE VC | Volts into the slope time control, after the Slope VC attenuverter and the Route switch |
 
 | Output | Voltage |
 | --- | --- |
 | PLEAT OUT | 2.5 times the PLEAT host sample, after the output 10 Hz block |
-| SLOPE END | +5 V while the circuit end gate is high and slope OUT is below 4 V. Otherwise 0 V. Idle, with OUT at 0 V, is +5 V |
+| SLOPE END | 0 V or +5 V. +5 V while the circuit end gate is high and slope OUT is below 4 V. Otherwise 0 V. Idle, with OUT at 0 V, is +5 V. The same `EndJackVolts` law as the standalone slope |
 | SLOPE OUT | The slope sample, 0 V to +5 V |
 | SLOPE AC | The 10 Hz block of (circuit AC - 2.5), in volts. Circuit AC is 2.5 - OUT |
 
 Host ±1 is ±2.5 V, the PLEAT Serge level. An unpatched PLEAT IN 1 does not round-trip through that scale: the host sample goes straight into the same drive as the PLEAT plugin. PLEAT OUT in volts is 2.5 times the sample that also goes to the host.
 
-Slope IN volts go straight into the slope input. There is no 5x host scaling on that jack. Slope VC volts go into the slope VC. The circuit is the second half, both rise and fall under VC, 1V/oct at 0, feedback at 0.
+Slope IN volts go straight into the slope input. There is no 5x host scaling on that jack. Slope VC volts are multiplied by the Slope VC attenuverter, then they go into the slope VC on the segment Route selects. Depth 0, the default, passes 0 V, so the jack does nothing until the knob moves. Depth +1 is the unscaled jack. Depth -1 inverts it. Route defaults to BOTH. 1V/oct stays at 0. Feedback stays at 0. The circuit is the second half.
 
 The circuit end gate is still 0 while falling and 1 otherwise. The Cycle switch reads that gate inside the circuit. The END jack is a separate 5 V logic output with the GTS window. The Serge GTS manual, page 5, says END goes high at the end of the fall and stays high for about 80% of the rise. On a straight line from 0 V to 5 V, 80% is 4 V. A jack that stayed high for the whole rise, patched to TRIG, would meet the hold rule and sit at +5 V. The window drops the jack to 0 V once OUT reaches 4 V, so that cable cycles instead. At 48 kHz, with rise and fall at 5 ms, the END to TRIG cable repeats every 481 samples. The Cycle switch repeats every 480 samples. The cable is one sample longer: the jack goes high on the idle sample after the fall, and TRIG reads that high on the next sample.
 
@@ -52,7 +54,7 @@ Zero cables is a complete instrument. A cable in an input breaks that input's no
 | Host audio to PLEAT IN 1 | Volts are 2.5 times the host sample. The path is the PLEAT plugin: 10 Hz IN 1 block, then the drive |
 | IN 2 DC knob to PLEAT IN 2 | Smoothed, held across the four phases, and C^6(s) is subtracted. A cable replaces the knob: the voltage is DC coupled, not smoothed, upsampled by its own 63-tap filter with the same zero stuffing as the drive, added on each phase, and C^6(s) is not subtracted. A patched IN 2 is clamped to ±10 V. A non-finite cable reads as 0 |
 | Slope OUT to PLEAT VC | The previous sample of slope OUT, through VC Depth. VC Depth applies to a cable on this jack as well |
-| Host MIDI gate to slope TRIG | Any note held is 5 V. No notes is 0 V. The edge is the sample the message is stamped with. Held high sustains at +5 V. All-notes-off, CC 123, releases. A note-on with velocity 0 is a note-off. A TRIG cable breaks this normal |
+| Host MIDI gate to slope TRIG | Any note held is 5 V. No notes is 0 V. The edge is the sample the message is stamped with. The sustain comes from that voltage still being high at +5 V, not from a DAW-specific hold. All-notes-off, CC 123, releases. A note-on with velocity 0 is a note-off. A TRIG cable breaks this normal |
 | Cycle switch is the END to TRIG cord | The cord is on while the switch is on. Turning it on arms one trigger, including after reset while it is already on. It runs together with whatever voltage is on TRIG |
 | Slope IN and slope VC are 0 V unpatched | Host audio is not normalled to slope IN |
 | PLEAT OUT to the host | Always. A cable from PLEAT OUT to another jack does not mute the host |
@@ -67,13 +69,15 @@ The UI writes one atomic byte per input. The audio block copies those bytes once
 
 ## VC law
 
-This is a modelling choice. The manuals say FOLD sets the baseline as CV is added on top. They do not give an octave law. The law here is:
+This is a modelling choice. The manuals say FOLD sets the baseline as CV is added on top (La Bestia 3, page 20). They do not give a volts-per-fold figure. The law here adds the attenuated jack to the fold amount:
 
 ```text
-g = clamp(g_s * 2^(0.8 * depth * VC), 0.5, 8)
+g = clamp(g_s + depth * VC, 0.5, 8)
 ```
 
-`g_s` is the smoothed Fold knob. `VC` is volts on PLEAT VC. `depth` is VC Depth, clamped to the range 0 to 1. At depth 1, +5 V is four octaves, which is the whole knob range from 0.5 to 8. VC is not smoothed: the hardware VC takes audio. `g` is computed once per audio sample and held across the four phases. A VC of 0, or a depth of 0, returns `g_s` with no multiply, so the smoother value reaches the cells unchanged. A non-finite VC or depth is treated as 0.
+`g_s` is the smoothed Fold knob. `VC` is volts on PLEAT VC. `depth` is VC Depth, clamped to the range 0 to 1. One volt at depth 1 adds 1 to the fold amount, so a 0 V to +5 V slope moves Fold 1 up to 6. VC is not smoothed: the hardware VC takes audio. `g` is computed once per audio sample and held across the four phases. A VC of 0, or a depth of 0, returns `g_s` with no addition, so the smoother value reaches the cells unchanged. A non-finite VC or depth is treated as 0.
+
+PLEAT OUT is then hard-clamped to ±5 V. A sample already inside that rail is left as the cell path produced it, so an unmodulated Fold matches the standalone PLEAT plugin bit for bit. The clamp is what keeps a moving fold amount on the jack: the level correction assumes a steady `g`, and the decimator still holds a few samples of the previous amount.
 
 VC Depth is the modern-panel addition. The original 1970s VCM middle section had no VC attenuator. Current official Serge panels do: La Bestia 3, page 20, "MID AU", and the Random*Source VCM.
 
@@ -103,7 +107,7 @@ The universal FL Studio bundle is in `BUILD.md`.
 
 ## Limits
 
-A TRIG voltage that drops before the slope passes 4 V finishes as a trigger: a full rise and a full fall. A voltage that is still high once the slope is past 4 V holds the output at +5 V until it drops, and the END jack is 0 V for that hold. The 4 V mark is exact on the 5 ms stair at 48 kHz. A 4.5 V compare is not, because 5 * (216 / 240) is not a binary 4.5.
+A TRIG voltage that has stayed high since the edge that started the rise holds the output at +5 V until the voltage goes low. A pulse that arrives later, including one that lands on the sample the rise finishes, does not hold. The END jack is 0 V for that hold, because OUT is not below 4 V. A voltage that has already gone low, including one that drops before OUT passes 4 V, does not hold: the rise finishes and the fall starts. The 4 V mark is only the END jack window. It is exact on the 5 ms stair at 48 kHz. A 4.5 V compare is not, because 5 * (216 / 240) is not a binary 4.5. A positive SLOPE IN overrides the TRIG hold and the slope slews to that input.
 
 The host is told 16 samples of latency, the same figure as the PLEAT plugin. The two 63-tap filters delay 31 + 31 samples at the four-times rate, which is 15.5 audio samples.
 
@@ -111,6 +115,6 @@ Slope IN other than 0 V takes the input path and does not also inject the TRIG e
 
 ## Gaps
 
-The slope VC jack has no attenuverter, and the panel has no RISE/BOTH/FALL switch. The circuit keeps both rise and fall under VC. There is no 1V/OCT jack. The VCM top and bottom sections are not in this plugin. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent.
+There is no 1V/OCT jack. The VCM top and bottom sections are not in this plugin. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay.
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.

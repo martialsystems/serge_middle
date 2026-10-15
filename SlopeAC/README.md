@@ -10,13 +10,17 @@ Cycle defaults to off. It is the switch on the later Serge GTS panel: one intern
 
 `ShapeExp` on Rise and Fall is only the knob mapping. The slopes themselves are straight lines. On the GTS, clockwise is faster. These knobs show time, so clockwise is slower.
 
-The editor is the enamel plate, 416 by 624. Rise and Fall are skirted knobs. Each caption reads the time: under 10 ms as two decimals of ms (0.40 ms, 5.00 ms), under 100 ms as one decimal (12.5 ms), under 1 s as whole milliseconds (250 ms), under 10 s as two decimals of seconds (1.50 s), and from 10 s as one decimal (10.0 s). Cycle is a two-frame lever. The rate readout shows the free-cycle rate while Cycle is on (2.50 Hz, 71.4 Hz, 714 Hz, 1.07 kHz) and OFF while it is off.
+The editor is the enamel plate, 416 by 624. Rise and Fall are skirted knobs. Each caption reads the time: under 10 ms as two decimals of ms (0.40 ms, 5.00 ms), under 100 ms as one decimal (12.5 ms), under 1 s as whole milliseconds (250 ms), under 10 s as two decimals of seconds (1.50 s), and from 10 s as one decimal (10.0 s). Cycle is a two-frame lever. VC is the attenuverter, from -1 to +1, default 0, so the VC jack passes nothing until the knob moves. Route is the three-position switch, RISE / BOTH / FALL, default BOTH. The rate readout shows the free-cycle rate while Cycle is on (2.50 Hz, 71.4 Hz, 714 Hz, 1.07 kHz) and OFF while it is off.
+
+There is no patch bay on this plugin, and the audio path does not read MIDI. The host sample stays on IN in both Cycle positions. The VC jack voltage is 0 V, an unpatched jack, and the attenuverter scales that 0. The same `HostSample` call is what a patched VC voltage uses: depth +1 passes it, depth -1 inverts it, and the route switch picks the segment. TRIG hold, retrigger lockout, and the IN override live in the circuit, so a TRIG voltage passed into `Step` holds at +5 V without a DAW. Cycle's arm is one sample, so Cycle itself does not sustain.
+
+END is the same jack law as the combined plugin, `EndJackVolts` in `dsp/SecondHalf.h`: 0 V or +5 V. +5 V while the circuit end gate is high and OUT is below 4 V, otherwise 0 V. Idle, OUT at 0 V, is +5 V. A sustain at +5 V is 0 V on the jack. The host output is still the coupled AC jack. The plate draws END next to OUT. Cycle keeps reading the circuit gate inside the slope, not this windowed jack, so a 5 ms cycle stays 480 samples.
 
 ## Layout
 
 | Path | Role |
 | --- | --- |
-| `SlopeAC.cpp`, `SlopeAC.h` | iPlug2 effect: Rise, Fall, Cycle, one state per channel |
+| `SlopeAC.cpp`, `SlopeAC.h` | iPlug2 effect: Rise, Fall, Cycle, then VC and Route, one state per channel |
 | `config.h` | Name Slope AC, I/O `1-1 2-2`, latency 0, window 416 by 624 |
 | `CMakeLists.txt` | iPlug2 CMake project, format VST3 |
 | `SlopeView.h` | Plate, knobs, time captions, Cycle switch, rate readout |

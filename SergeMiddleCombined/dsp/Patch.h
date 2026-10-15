@@ -43,23 +43,25 @@ inline constexpr int kMeterCount = kNumInputs + kNumOutputs;
 inline constexpr uint8_t kRoutingMagic = 0x52;
 inline constexpr uint8_t kRoutingVersion = 1;
 inline constexpr int kRoutingBytes = 3 + kNumInputs;
-inline constexpr double kVcOctavesPerVolt = 0.8;
 inline constexpr double kIn2CableLimit = 10.0;
+// Combined PLEAT OUT jack. The cells are not clipped. This rail is applied
+// after the level law, and a sample already inside it is left untouched.
+inline constexpr double kPleatOutLimit = 5.0;
 inline constexpr double kGateVolts = 5.0;
 // 5 * (216 / 240) is not a binary 4.5, so a 4.5 V compare can miss the exact stair.
 // 4 V is exact at 5 * (192 / 240), which is 80% of a straight 5 V rise.
-// The hold starts on the next sample. The END jack uses the same 4 V mark.
-inline constexpr double kHoldVolts = 4.0;
+// The END jack uses that mark. A TRIG sustain does not: the fall waits at +5 V.
+inline constexpr double kHoldVolts = slope::kEndWindowVolts;
+static_assert(kHoldVolts == 4.0, "END window stays at 4 V");
 
-// SLOPE END jack, in volts. The circuit end gate is still 0 while falling and
-// 1 otherwise, and the Cycle switch still reads that gate inside the circuit.
-// The jack is 5 V when the gate is high and slope OUT is below 4 V, otherwise 0 V.
-// Idle OUT of 0 V is high, so an END to TRIG cable at idle is a rising edge.
+// SLOPE END jack, in volts. Shared with the slope header. 0 V or +5 V.
+// The circuit end gate is still 0 while falling and 1 otherwise, and the
+// Cycle switch still reads that gate inside the circuit. The jack is +5 V
+// when the gate is high and slope OUT is below 4 V, otherwise 0 V. Idle OUT
+// of 0 V is high, so an END to TRIG cable at idle is a rising edge.
 inline double EndJackVolts(double endGate, double out)
 {
-  if (endGate > 0.0 && out < kHoldVolts)
-    return kGateVolts;
-  return 0.0;
+  return slope::EndJackVolts(endGate, out);
 }
 
 inline int MeterOf(bool output, int index)
@@ -184,8 +186,10 @@ inline double ClampPatchedIn2(double volts)
   return volts;
 }
 
-// g = clamp(gS * 2^(0.8 * depth * VC), 0.5, 8). VC of 0, or depth of 0, returns gS
-// with no multiply, so the smoother value reaches the cells unchanged.
+// g = clamp(gS + depth * VC, 0.5, 8). The fold knob is the baseline and the
+// attenuated VC is added to it, in fold-amount units: one volt at depth 1
+// adds 1. Depth 0, or a VC of 0 V, returns gS with no addition, so the
+// smoother value reaches the cells unchanged.
 inline double FoldWithVc(double gS, double depth, double vc)
 {
   if (!std::isfinite(gS))
@@ -196,10 +200,10 @@ inline double FoldWithVc(double gS, double depth, double vc)
     depth = 1.0;
   if (!std::isfinite(vc) || vc == 0.0)
     return gS;
-  const double factor = std::pow(2.0, kVcOctavesPerVolt * depth * vc);
-  if (!std::isfinite(factor))
+  const double summed = gS + depth * vc;
+  if (!std::isfinite(summed))
     return serge::DriveScale(gS);
-  return serge::DriveScale(gS * factor);
+  return serge::DriveScale(summed);
 }
 
 // Held MIDI notes. A second note-on does not add, and a second note-off does not subtract.
@@ -303,12 +307,14 @@ public:
     mOut[SlopeEnd] = kGateVolts;
     mAppliedG = serge::kGDefault;
     mHost = 0.0;
-    mTrigWasHigh = false;
   }
 
   // `arm` is the one-sample Cycle arm. `cycle` keeps the END to TRIG cord.
+  // `slopeVcDepth` is the attenuverter, default 0, so an unscaled jack is not
+  // what a saved project gets. `slopeRoute` is 0 rise, 1 both, 2 fall.
   double Step(double hostIn, double midiGateVolts, double gS, double sS, double depth, double rise,
-              double fall, bool cycle, bool arm, const Routing& routing)
+              double fall, bool cycle, bool arm, const Routing& routing, double slopeVcDepth = 0.0,
+              int slopeRoute = 1)
   {
     if (!std::isfinite(hostIn))
       hostIn = 0.0;
@@ -332,30 +338,31 @@ public:
     }
 
     double inp = mIn[SlopeIn];
-    double circuitTrig = (cycle && arm) ? kGateVolts : 0.0;
-    const bool trigHigh = mIn[SlopeTrig] > slope::kTrigThreshold;
-    // A TRIG voltage still high near the top holds at +5 V. A rising edge
-    // starts the excursion. IN other than 0 overrides TRIG, as the circuit does.
-    if (inp == 0.0 && trigHigh)
-    {
-      if (!mTrigWasHigh)
-        circuitTrig = kGateVolts;
-      else if (mSlope.Volts() > kHoldVolts)
-        inp = kGateVolts;
-    }
-    mTrigWasHigh = trigHigh;
+    // The circuit sees the TRIG level, not a one-sample edge. A level that has
+    // stayed high since the starting edge holds at +5 V. The Cycle arm is one high sample.
+    double circuitTrig = mIn[SlopeTrig];
+    if (cycle && arm && !(circuitTrig > slope::kTrigThreshold))
+      circuitTrig = kGateVolts;
 
     const double safeRise = SafeTime(rise);
     const double safeFall = SafeTime(fall);
+    mSlope.SetSwitch(slope::SwitchFromInt(slopeRoute));
     mSlope.SetTimes(safeRise, safeFall);
-    const slope::Sample sample = mSlope.Step(inp, circuitTrig, mIn[SlopeVc], 0.0, 0.0, cycle);
+    const double scaledVc = slope::ScaleVc(mIn[SlopeVc], slopeVcDepth);
+    const slope::Sample sample = mSlope.Step(inp, circuitTrig, scaledVc, 0.0, 0.0, cycle);
     const double coupled = mCoupler.Step(sample.ac - slope::kAcCenter);
 
     mAppliedG = FoldWithVc(gS, depth, mIn[PleatVc]);
     const double a = in1Patched ? mIn[PleatIn1] / serge::kAudioFullScaleVolts : hostIn;
     mHost = mPleat.Step(a, mAppliedG, sS, in2Patched, mIn[PleatIn2]);
 
-    mOut[PleatOut] = serge::kAudioFullScaleVolts * mHost;
+    double pleatOut = serge::kAudioFullScaleVolts * mHost;
+    if (pleatOut > kPleatOutLimit || pleatOut < -kPleatOutLimit)
+    {
+      pleatOut = pleatOut > kPleatOutLimit ? kPleatOutLimit : -kPleatOutLimit;
+      mHost = pleatOut / serge::kAudioFullScaleVolts;
+    }
+    mOut[PleatOut] = pleatOut;
     mOut[SlopeEnd] = EndJackVolts(sample.end, sample.out);
     mOut[SlopeOut] = sample.out;
     mOut[SlopeAc] = coupled;
@@ -491,7 +498,6 @@ private:
   double mOut[kNumOutputs] = {0.0, kGateVolts, 0.0, 0.0};
   double mAppliedG = serge::kGDefault;
   double mHost = 0.0;
-  bool mTrigWasHigh = false;
 };
 
 } // namespace patch

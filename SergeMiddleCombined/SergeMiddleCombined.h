@@ -20,6 +20,8 @@ enum EParams
   kRise,
   kFall,
   kCycle,
+  kSlopeVc,
+  kRoute,
   kNumParams
 };
 
