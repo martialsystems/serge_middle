@@ -1,0 +1,43 @@
+{
+  "name": "slope_cycles",
+  "engine": "slope",
+  "sample_rate": 48000,
+  "sample_rates": [44100, 48000, 96000],
+  "duration_ms": 115,
+  "note": "Cycle switch on. The first 100 ms is rise = fall = 5 ms, long enough for the 10 Hz AC jack to settle. The rest is rise 0.4 ms, fall 1.0 ms.",
+  "params": {"cycle": true, "vc_depth": 0.0, "route": "both"},
+  "segments": [
+    {
+      "t0_ms": 0,
+      "t1_ms": 100,
+      "reset": true,
+      "params": {"rise_s": 0.005, "fall_s": 0.005, "cycle": true}
+    },
+    {
+      "t0_ms": 100,
+      "t1_ms": 115,
+      "reset": true,
+      "params": {"rise_s": 0.0004, "fall_s": 0.001, "cycle": true}
+    }
+  ],
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {
+      "id": "period_5ms",
+      "type": "period",
+      "jack": "out",
+      "t0_ms": 0,
+      "t1_ms": 100,
+      "samples": {"44100": 440, "48000": 480, "96000": 960}
+    },
+    {
+      "id": "period_fast",
+      "type": "period",
+      "jack": "out",
+      "t0_ms": 100,
+      "t1_ms": 115,
+      "samples": {"44100": 62, "48000": 67, "96000": 134}
+    },
+    {"id": "ac_centered", "type": "mean_abs", "jack": "ac_coupled", "t0_ms": 80, "t1_ms": 100, "max": 0.05}
+  ]
+}
