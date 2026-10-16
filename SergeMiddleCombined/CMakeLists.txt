@@ -28,3 +28,11 @@ iplug_add_plugin(${PROJECT_NAME}
     ../SergeMiddle/resources/fonts/Roboto-Regular.ttf
   FORMATS VST3 APP
 )
+
+# Standalone app: build the altered IPlugAPP_host.cpp in app/ (input channel
+# count follows the device) instead of the stock one.
+if(TARGET ${PROJECT_NAME}-app)
+  set_source_files_properties(${IPLUG2_DIR}/IPlug/APP/IPlugAPP_host.cpp PROPERTIES HEADER_FILE_ONLY TRUE)
+  target_sources(${PROJECT_NAME}-app PRIVATE app/IPlugAPP_host.cpp)
+  set_source_files_properties(app/IPlugAPP_host.cpp PROPERTIES LANGUAGE OBJCXX)
+endif()

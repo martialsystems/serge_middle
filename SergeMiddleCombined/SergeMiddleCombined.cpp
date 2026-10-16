@@ -74,17 +74,17 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kRoute)->InitInt("Route", 1, 0, 2);
   GetParam(kRoute)->SetDisplayFunc(ShowRoute);
   // Appended after Route. An older project keeps the eight above and loads these at the defaults.
-  GetParam(kTopGain)->InitDouble("Top Gain", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kTopGain)->InitDouble("Top Gain", 0.1, 0.0, 1.0, 0.001);
   GetParam(kTopGain)->SetDisplayFunc(ShowUnit);
   GetParam(kTopHi)->InitBool("Top HI", false);
-  GetParam(kBottomGain)->InitDouble("Bottom Level", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kBottomGain)->InitDouble("Bottom Level", 0.6, 0.0, 1.0, 0.001);
   GetParam(kBottomGain)->SetDisplayFunc(ShowUnit);
   GetParam(kBottomVc)->InitDouble("Bottom VC", 1.0, 0.0, 1.0, 0.001);
-  GetParam(kRise2)->InitDouble("Rise 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
-  GetParam(kFall2)->InitDouble("Fall 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kRise2)->InitDouble("Rise 2", 0.02, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kFall2)->InitDouble("Fall 2", 0.35, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
   GetParam(kRise2)->SetDisplayFunc(ShowTime);
   GetParam(kFall2)->SetDisplayFunc(ShowTime);
-  GetParam(kCycle2)->InitBool("Cycle 2", false);
+  GetParam(kCycle2)->InitBool("Cycle 2", true);
   GetParam(kSlopeVc2)->InitDouble("Slope VC 2", 0.0, -1.0, 1.0, 0.001);
   GetParam(kRoute2)->InitInt("Route 2", 1, 0, 2);
   GetParam(kRoute2)->SetDisplayFunc(ShowRoute);
@@ -93,6 +93,9 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kOscFreq)->InitDouble("Osc Freq", 110.0, 20.0, 2000.0, 0.01, "Hz", 0, "", IParam::ShapeExp());
   GetParam(kOscLevel)->InitDouble("Osc Level", -12.0, -60.0, 0.0, 0.1, "dB");
   GetParam(kOscToIn1)->InitBool("Osc to IN 1", true);
+  // Which jack the host hears. PLEAT OUT was the only choice before this
+  // parameter. The starter patch ends at the VCA, so the default is VCA OUT.
+  GetParam(kHostOut)->InitEnum("Host Out", 1, {"PLEAT OUT", "VCA OUT", "RECTIFIER OUT 1"});
 
   ApplyRouting(StarterRouting());
 
@@ -122,6 +125,9 @@ patch::Routing SergeMiddleCombined::StarterRouting()
   patch::Routing routing;
   routing.Connect(patch::OscOut, patch::PleatIn1);
   routing.Connect(patch::SlopeOut, patch::PleatVc);
+  routing.Connect(patch::PleatOut, patch::BottomIn);
+  routing.Connect(patch::BottomOut1, patch::TopIn);
+  routing.Connect(patch::Slope2Out, patch::TopVc);
   return routing;
 }
 
@@ -284,6 +290,7 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
   const double oscFreq = GetParam(kOscFreq)->Value();
   const double oscVolts = patch::OscVoltsFromDb(GetParam(kOscLevel)->Value());
   const bool oscToIn1 = GetParam(kOscToIn1)->Bool();
+  const int hostOut = GetParam(kHostOut)->Int();
   const int nChans = std::min(NOutChansConnected(), kMaxChannels);
 
   patch::BlockMeter meter;
@@ -328,7 +335,12 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
       const double host = static_cast<double>(inputs[c][s]);
       const double y = mChannels[c].Step(host, gate, gS, sS, depth, rise, fall, cycle, arm, routing,
                                          slopeDepth, route, extra);
-      outputs[c][s] = static_cast<sample>(y);
+      double heard = y;
+      if (hostOut == 1)
+        heard = mChannels[c].OutputVolts(patch::TopOut) / serge::kAudioFullScaleVolts;
+      else if (hostOut == 2)
+        heard = mChannels[c].OutputVolts(patch::BottomOut1) / serge::kAudioFullScaleVolts;
+      outputs[c][s] = static_cast<sample>(heard);
       if (c == 0)
       {
         for (int i = 0; i < patch::kNumInputs; ++i)

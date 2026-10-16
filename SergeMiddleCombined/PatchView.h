@@ -342,8 +342,12 @@ inline void CubicSamples(float x1, float y1, float x2, float y2, slewfold::Vec* 
 class FilmKnob final : public gfx::IKnobControlBase
 {
 public:
-  FilmKnob(const gfx::IRECT& bounds, int paramIdx, const gfx::IBitmap& bitmap, int index, FaceState* face)
+  // shrink < 1 draws the 72 px tile scaled down about the centre (test osc
+  // knobs). DrawBitmap does not scale, so a small rect would clip the tile.
+  FilmKnob(const gfx::IRECT& bounds, int paramIdx, const gfx::IBitmap& bitmap, int index, FaceState* face,
+           float shrink = 1.f)
   : gfx::IKnobControlBase(bounds, paramIdx, gfx::EDirection::Vertical)
+  , mShrink(shrink)
   , mBitmap(bitmap)
   , mIndex(index)
   , mFace(face)
@@ -403,10 +407,23 @@ public:
       frame = 0;
     if (frame >= kFilmFrames)
       frame = kFilmFrames - 1;
-    g.DrawBitmap(mBitmap, mRECT, frame + 1, nullptr);
+    if (mShrink >= 0.999f)
+    {
+      g.DrawBitmap(mBitmap, mRECT, frame + 1, nullptr);
+      return;
+    }
+    const float cx = mRECT.MW();
+    const float cy = mRECT.MH();
+    g.PathTransformSave();
+    g.PathTransformTranslate(cx, cy);
+    g.PathTransformScale(mShrink);
+    g.PathTransformTranslate(-cx, -cy);
+    g.DrawBitmap(mBitmap, mRECT.GetScaledAboutCentre(1.f / mShrink), frame + 1, nullptr);
+    g.PathTransformRestore();
   }
 
 private:
+  float mShrink;
   gfx::IBitmap mBitmap;
   int mIndex;
   FaceState* mFace;
@@ -1221,7 +1238,8 @@ inline void AttachFace(gfx::IGraphics* g, SergeMiddleCombined& plug)
   for (int i = 0; i < kKnobCount; ++i)
   {
     const KnobSpot& knob = kKnobs[i];
-    g->AttachControl(new FilmKnob(Spot(bounds, knob.x, knob.y, knob.d, knob.d), knob.param, film, i, face));
+    g->AttachControl(
+        new FilmKnob(Spot(bounds, knob.x, knob.y, knob.d, knob.d), knob.param, film, i, face, knob.d / kKnobD));
   }
   g->AttachControl(new CableControl(bounds, plug, face), kCableTag);
   for (int i = 0; i < kKnobCount; ++i)

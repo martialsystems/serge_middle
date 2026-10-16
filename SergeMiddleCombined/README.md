@@ -167,4 +167,8 @@ A small TEST OSC strip sits at the top left of the plate: a SINE / SAW / SQR lev
 
 ## Starter patch
 
-A fresh instance opens on a starter patch: the test sine at 110 Hz, -12 dB, cabled into PLEAT IN 1, Fold 2, VC Depth 0.5, and Slope 1 cycling (Rise 1.5 s, Fall 2.5 s) cabled into PLEAT VC, so the fold sweeps slowly. PLEAT OUT is the host output. The knob values are the parameter defaults, so right-click or double-click on a knob returns it to the starter value. The routing is set in the constructor, not in OnReset: hosts call OnReset on every sample-rate or transport change, and that must not wipe a user's cables. A saved project or saved app state replaces both.
+A fresh instance opens on a starter patch that runs through every section. The test sine (110 Hz, -12 dB) is cabled into PLEAT IN 1. Slope 1 cycles slowly (Rise 1.5 s, Fall 2.5 s) and is cabled into PLEAT VC (VC Depth 0.5, Fold 2), so the fold sweeps. PLEAT OUT is cabled into RECTIFIER IN (Level 0.6), RECTIFIER OUT 1 into VCA IN, and Slope 2, cycling fast (Rise 20 ms, Fall 350 ms), into VCA VC (Gain 0.1), so the VCA pulses about 2.7 times a second. The host hears VCA OUT. Every jack stays inside +/-5 V; see the starter_patch playground patch.
+
+The host output is the Host Out parameter: PLEAT OUT (the only choice before it existed), VCA OUT (the default), or RECTIFIER OUT 1. It has no panel control yet; the panel marks VCA OUT as the host feed. An older project saved before Host Out loads it at its default, VCA OUT, so set it to PLEAT OUT to hear such a project as before.
+
+The knob values are the parameter defaults, so right-click or double-click on a knob returns it to the starter value. The routing is set in the constructor, not in OnReset: hosts call OnReset on every sample-rate or transport change, and that must not wipe a user's cables. A saved project or saved app state replaces both.

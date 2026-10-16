@@ -35,6 +35,7 @@ enum EParams
   kOscFreq,
   kOscLevel,
   kOscToIn1,
+  kHostOut,
   kNumParams
 };
 
@@ -52,7 +53,7 @@ public:
   SergeMiddleCombined(const InstanceInfo& info);
   ~SergeMiddleCombined();
 
-  // The starter patch: test osc into PLEAT IN 1, Slope 1 OUT into PLEAT VC.
+  // The starter patch: every section in one chain. See README.
   static patch::Routing StarterRouting();
 
   patch::Routing RoutingSnapshot() const;
