@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 namespace
@@ -325,8 +326,25 @@ void TestHostUntouched()
 }
 } // namespace
 
+void TestFormatUnit()
+{
+  char buf[16];
+  vcm::FormatUnit(0.0, buf, sizeof buf);
+  Check(std::strcmp(buf, "0") == 0, "unit 0 reads 0");
+  Check(std::strcmp(buf, "0.000") != 0, "unit 0 is not 0.000");
+  vcm::FormatUnit(0.5, buf, sizeof buf);
+  Check(std::strcmp(buf, "0.5") == 0, "unit 0.5 reads 0.5");
+  vcm::FormatUnit(1.0, buf, sizeof buf);
+  Check(std::strcmp(buf, "1") == 0, "unit 1 reads 1");
+  vcm::FormatUnit(0.25, buf, sizeof buf);
+  Check(std::strcmp(buf, "0.25") == 0, "unit 0.25 reads 0.25");
+  vcm::FormatUnit(-0.2, buf, sizeof buf);
+  Check(std::strcmp(buf, "0") == 0, "unit below 0 reads 0");
+}
+
 int main()
 {
+  TestFormatUnit();
   TestTop();
   TestBottom();
   TestSlope2Matches();

@@ -1,8 +1,10 @@
 # Serge Middle
 
-`SergeMiddleCombined` is the Wave Multipliers module and two slope sections in one VST3. The plate is five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
+`SergeMiddleCombined` is the Wave Multipliers module and two slope sections in one VST3. The plate is one paperface rectangle. The top row is VCM top, PLEAT, and VCM bottom. The bottom row is slope 1 and slope 2. Jacks are the large marks. Printed lines show the signal path, and dashed lines are the normals. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
 
-Window: 2080 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the knobs, the switches, the value captions, the rate readouts, the cables, and the hover labels. The top COUPLE lever is drawn on the plate and is not a parameter.
+Window: 1600 by 960, scaling from 1200 by 720 up to 2400 by 1440. The corner resizer and the host resize keep that aspect. The default fits a 1920 by 1080 screen. The minimum fits a 1280 by 800 screen. Format: VST3, via Unix Makefiles. The plate art holds the lettering, the jack colours, and the signal lines. Black jacks are bipolar, blue jacks are unipolar CV, the white jack is the DC-coupled input, and red jacks are trigger or gate. The code draws the small knobs, the switches, the value captions, the rate readouts, the cables, and the hover labels. Top Gain and Bottom Level read `0` at the counterclockwise stop, the same `0` as the tick, not `0.000`. The top COUPLE lever is drawn on the plate and is not a parameter.
+
+![Serge Middle panel](resources/middle_plate.png)
 
 ## Parameters
 

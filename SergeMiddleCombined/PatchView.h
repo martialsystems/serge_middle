@@ -4,13 +4,12 @@
 // Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 //
 // The plate art carries the lettering. This file draws the live knobs, the
-// Cycle switch is attached by the plugin, and this control draws cables and
-// hover labels. Five panels: top, PLEAT, bottom, slope 1, slope 2.
-// Jack fractions match middle_plate.svg. The COUPLE lever is plate art only.
+// switches are attached by the plugin, and this control draws cables and
+// hover labels. One 1600 by 960 grid: top, middle, bottom, then two slopes.
+// Jack fractions match tools/art/paper_plate.py. The COUPLE lever is plate art only.
 
 #include "SergeMiddleCombined.h"
 
-#include "../SergeMiddle/PleatView.h"
 #include "../SlopeAC/SlopeView.h"
 
 #include <algorithm>
@@ -21,8 +20,9 @@ namespace patchview
 {
 namespace gfx = iplug::igraphics;
 
-inline constexpr float kJackHit = 40.0f;
-inline constexpr float kJackY = 0.785f;
+inline constexpr float kJackHit = 46.0f;
+inline constexpr float kDesignW = 1600.f;
+inline constexpr float kDesignH = 960.f;
 static_assert(kJackHit >= 28.f, "jack hit target");
 
 struct JackRef
@@ -30,61 +30,55 @@ struct JackRef
   bool output;
   int index;
   float xFrac;
-  int panel;
+  float yFrac;
   const char* label;
 };
 
-// middle_plate.png is five panels of equal width, left to right.
-inline constexpr int kPanelCount = 5;
-inline constexpr int kTopPanel = 0;
-inline constexpr int kPleatPanel = 1;
-inline constexpr int kBottomPanel = 2;
-inline constexpr int kSlopePanel = 3;
-inline constexpr int kSlope2Panel = 4;
-
+// Pixels on the 1600 by 960 plate, from tools/art/paper_plate.py.
 inline constexpr int kJackCount = 23;
 inline constexpr JackRef kJacks[kJackCount] = {
-    {false, patch::PleatIn1, 0.18f, kPleatPanel, "PLEAT IN 1"},
-    {false, patch::PleatIn2, 0.39f, kPleatPanel, "PLEAT IN 2"},
-    {false, patch::PleatVc, 0.61f, kPleatPanel, "PLEAT VC"},
-    {true, patch::PleatOut, 0.82f, kPleatPanel, "PLEAT OUT"},
-    {false, patch::SlopeIn, 0.12f, kSlopePanel, "SLOPE IN"},
-    {false, patch::SlopeTrig, 0.27f, kSlopePanel, "SLOPE TRIG"},
-    {false, patch::SlopeVc, 0.42f, kSlopePanel, "SLOPE VC"},
-    {true, patch::SlopeEnd, 0.58f, kSlopePanel, "SLOPE END"},
-    {true, patch::SlopeOut, 0.73f, kSlopePanel, "SLOPE OUT"},
-    {true, patch::SlopeAc, 0.88f, kSlopePanel, "SLOPE AC"},
-    {false, patch::TopIn, 0.22f, kTopPanel, "TOP IN"},
-    {false, patch::TopVc, 0.50f, kTopPanel, "TOP VC"},
-    {true, patch::TopOut, 0.78f, kTopPanel, "TOP OUT"},
-    {false, patch::BottomIn, 0.18f, kBottomPanel, "BOTTOM IN"},
-    {false, patch::BottomVc, 0.39f, kBottomPanel, "BOTTOM VC"},
-    {true, patch::BottomOut1, 0.61f, kBottomPanel, "BOTTOM OUT 1"},
-    {true, patch::BottomOut2, 0.82f, kBottomPanel, "BOTTOM OUT 2"},
-    {false, patch::Slope2In, 0.12f, kSlope2Panel, "SLOPE 2 IN"},
-    {false, patch::Slope2Trig, 0.27f, kSlope2Panel, "SLOPE 2 TRIG"},
-    {false, patch::Slope2Vc, 0.42f, kSlope2Panel, "SLOPE 2 VC"},
-    {true, patch::Slope2End, 0.58f, kSlope2Panel, "SLOPE 2 END"},
-    {true, patch::Slope2Out, 0.73f, kSlope2Panel, "SLOPE 2 OUT"},
-    {true, patch::Slope2Ac, 0.88f, kSlope2Panel, "SLOPE 2 AC"},
+    {false, patch::TopIn, 96.f / kDesignW, 432.f / kDesignH, "TOP IN"},
+    {false, patch::TopVc, 274.f / kDesignW, 432.f / kDesignH, "TOP VC"},
+    {true, patch::TopOut, 452.f / kDesignW, 432.f / kDesignH, "TOP OUT"},
+    {false, patch::PleatIn1, 602.f / kDesignW, 432.f / kDesignH, "PLEAT IN 1"},
+    {false, patch::PleatIn2, 734.f / kDesignW, 432.f / kDesignH, "PLEAT IN 2"},
+    {false, patch::PleatVc, 866.f / kDesignW, 432.f / kDesignH, "PLEAT VC"},
+    {true, patch::PleatOut, 998.f / kDesignW, 432.f / kDesignH, "PLEAT OUT"},
+    {false, patch::BottomIn, 1128.f / kDesignW, 432.f / kDesignH, "BOTTOM IN"},
+    {false, patch::BottomVc, 1260.f / kDesignW, 432.f / kDesignH, "BOTTOM VC"},
+    {true, patch::BottomOut1, 1392.f / kDesignW, 432.f / kDesignH, "BOTTOM OUT 1"},
+    {true, patch::BottomOut2, 1524.f / kDesignW, 432.f / kDesignH, "BOTTOM OUT 2"},
+    {false, patch::SlopeIn, 70.f / kDesignW, 858.f / kDesignH, "SLOPE IN"},
+    {false, patch::SlopeTrig, 203.f / kDesignW, 858.f / kDesignH, "SLOPE TRIG"},
+    {false, patch::SlopeVc, 336.f / kDesignW, 858.f / kDesignH, "SLOPE VC"},
+    {true, patch::SlopeEnd, 468.f / kDesignW, 858.f / kDesignH, "SLOPE END"},
+    {true, patch::SlopeOut, 601.f / kDesignW, 858.f / kDesignH, "SLOPE OUT"},
+    {true, patch::SlopeAc, 734.f / kDesignW, 858.f / kDesignH, "SLOPE AC"},
+    {false, patch::Slope2In, 866.f / kDesignW, 858.f / kDesignH, "SLOPE 2 IN"},
+    {false, patch::Slope2Trig, 999.f / kDesignW, 858.f / kDesignH, "SLOPE 2 TRIG"},
+    {false, patch::Slope2Vc, 1132.f / kDesignW, 858.f / kDesignH, "SLOPE 2 VC"},
+    {true, patch::Slope2End, 1264.f / kDesignW, 858.f / kDesignH, "SLOPE 2 END"},
+    {true, patch::Slope2Out, 1397.f / kDesignW, 858.f / kDesignH, "SLOPE 2 OUT"},
+    {true, patch::Slope2Ac, 1530.f / kDesignW, 858.f / kDesignH, "SLOPE 2 AC"},
 };
 
-// VC Depth sits on the PLEAT panel. 253.76 is 0.61 of a 416-wide panel.
-inline gfx::IRECT DepthBounds(const gfx::IRECT& pleat)
+// A spot on the 1600 by 960 plate, scaled if the logical bounds change.
+inline gfx::IRECT DesignRect(const gfx::IRECT& plate, float x, float y, float w, float h)
 {
-  const float cx = pleat.L + 253.76f;
-  const float cy = pleat.T + 396.f;
-  const float half = 22.f + 8.f;
-  return gfx::IRECT(cx - half, cy - half, cx + half, cy + half);
+  const float sx = plate.W() / kDesignW;
+  const float sy = plate.H() / kDesignH;
+  const float cx = plate.L + x * sx;
+  const float cy = plate.T + y * sy;
+  return gfx::IRECT(cx - 0.5f * w * sx, cy - 0.5f * h * sy, cx + 0.5f * w * sx, cy + 0.5f * h * sy);
 }
 
-// The pleat bitmap is the large cap. Scale it to the 44 px skirt.
-class DepthKnob final : public gfx::IKnobControlBase
+// Small black cap, white pointer. Angle -130 is the CCW stop, the same arc as the plate ticks.
+class PaperKnob final : public gfx::IKnobControlBase
 {
 public:
-  DepthKnob(const gfx::IRECT& bounds, int paramIdx, const gfx::IBitmap& bitmap)
+  PaperKnob(const gfx::IRECT& bounds, int paramIdx, float diameter)
   : gfx::IKnobControlBase(bounds, paramIdx, gfx::EDirection::Vertical)
-  , mBitmap(bitmap)
+  , mDiameter(diameter)
   {
   }
 
@@ -92,22 +86,19 @@ public:
   {
     const float cx = mRECT.MW();
     const float cy = mRECT.MH();
-    const float radius = 22.f;
-    g.FillEllipse(gfx::IColor(90, 0, 0, 0), cx, cy + radius * 0.08f, radius * 1.02f, radius * 0.96f);
+    const float radius = 0.5f * mDiameter * (mRECT.W() / (mDiameter + 16.f));
+    const float drawn = radius > 1.f ? radius : 0.5f * mDiameter;
+    g.FillCircle(gfx::IColor(255, 22, 20, 18), cx, cy, drawn);
     const float angle = static_cast<float>(-130.0 + GetValue() * 260.0);
-    const float bw = static_cast<float>(mBitmap.W()) / mBitmap.GetDrawScale();
-    const float bh = static_cast<float>(mBitmap.H()) / mBitmap.GetDrawScale();
-    const float scale = 44.f / bw;
-    g.PathTransformSave();
-    g.PathTransformTranslate(cx, cy);
-    g.PathTransformRotate(angle);
-    g.PathTransformScale(scale);
-    g.DrawBitmap(mBitmap, gfx::IRECT(-0.5f * bw, -0.5f * bh, 0.5f * bw, 0.5f * bh));
-    g.PathTransformRestore();
+    const float rad = angle * 0.0174532925f;
+    const float s = std::sin(rad);
+    const float c = std::cos(rad);
+    g.DrawLine(gfx::IColor(255, 246, 244, 236), cx + s * drawn * 0.18f, cy - c * drawn * 0.18f,
+               cx + s * drawn * 0.88f, cy - c * drawn * 0.88f, nullptr, 2.f);
   }
 
 private:
-  gfx::IBitmap mBitmap;
+  float mDiameter;
 };
 
 inline gfx::IColor CableColor(int index)
@@ -277,10 +268,8 @@ private:
   void JackCentre(int index, float& x, float& y) const
   {
     const JackRef& jack = kJacks[index];
-    const float panelW = mRECT.W() / static_cast<float>(kPanelCount);
-    const float origin = mRECT.L + static_cast<float>(jack.panel) * panelW;
-    x = origin + jack.xFrac * panelW;
-    y = mRECT.T + kJackY * mRECT.H();
+    x = mRECT.L + jack.xFrac * mRECT.W();
+    y = mRECT.T + jack.yFrac * mRECT.H();
   }
 
   bool FindCentre(bool output, int index, float& x, float& y) const

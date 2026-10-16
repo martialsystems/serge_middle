@@ -19,30 +19,6 @@ constexpr int kCableTag = 100;
 constexpr int kRateTag = 101;
 constexpr int kRate2Tag = 102;
 
-IRECT KnobAt(const IRECT& plate, float xFrac, float yFrac, float diameter)
-{
-  const float cx = plate.L + xFrac * plate.W();
-  const float cy = plate.T + yFrac * plate.H();
-  const float half = 0.5f * diameter + 14.f;
-  return IRECT(cx - half, cy - half, cx + half, cy + half);
-}
-
-IRECT SwitchAt(const IRECT& plate, float xFrac, float yFrac)
-{
-  const float cx = plate.L + xFrac * plate.W();
-  const float cy = plate.T + yFrac * plate.H();
-  return IRECT(cx - 24.f, cy - 14.f, cx + 24.f, cy + 14.f);
-}
-
-IRECT AttenAt(const IRECT& plate)
-{
-  // 0.39 of a 416-wide panel, 44 px cap, same pad as the PLEAT VC Depth knob.
-  const float cx = plate.L + 162.24f;
-  const float cy = plate.T + 396.f;
-  const float half = 30.f;
-  return IRECT(cx - half, cy - half, cx + half, cy + half);
-}
-
 void ShowTime(double value, WDL_String& display)
 {
   char buf[32];
@@ -59,6 +35,13 @@ void ShowRoute(double value, WDL_String& display)
   else if (index == 2)
     name = "FALL";
   display.Set(name);
+}
+
+void ShowUnit(double value, WDL_String& display)
+{
+  char buf[16];
+  vcm::FormatUnit(value, buf, sizeof buf);
+  display.Set(buf);
 }
 } // namespace
 
@@ -88,8 +71,10 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kRoute)->SetDisplayFunc(ShowRoute);
   // Appended after Route. An older project keeps the eight above and loads these at the defaults.
   GetParam(kTopGain)->InitDouble("Top Gain", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kTopGain)->SetDisplayFunc(ShowUnit);
   GetParam(kTopHi)->InitBool("Top HI", false);
   GetParam(kBottomGain)->InitDouble("Bottom Level", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kBottomGain)->SetDisplayFunc(ShowUnit);
   GetParam(kBottomVc)->InitDouble("Bottom VC", 1.0, 0.0, 1.0, 0.001);
   GetParam(kRise2)->InitDouble("Rise 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
   GetParam(kFall2)->InitDouble("Fall 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
@@ -106,77 +91,110 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    pGraphics->AttachPanelBackground(IColor(255, 12, 17, 30));
+    // Scale keeps the plate aspect. 0.75 is 1200 by 720, which fits 1280 by 800.
+    // 1.5 is 2400 by 1440. The default 1600 by 960 fits 1920 by 1080.
+    pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false, IColor(210, 26, 24, 22));
+    pGraphics->SetScaleConstraints(0.75f, 1.5f);
+    pGraphics->EnableMouseOver(true);
+    pGraphics->AttachPanelBackground(IColor(255, 244, 239, 228));
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     pGraphics->AttachTextEntryControl();
 
     const IRECT bounds = pGraphics->GetBounds();
-    const float panelW = bounds.W() / static_cast<float>(patchview::kPanelCount);
-    const auto panelAt = [&](int index) {
-      const float x0 = bounds.L + static_cast<float>(index) * panelW;
-      return IRECT(x0, bounds.T, x0 + panelW, bounds.B);
-    };
-    // Panel 0 top, 1 PLEAT, 2 bottom, 3 slope 1, 4 slope 2.
+    // Spots are pixels on the 1600 by 960 plate. tools/art/paper_plate.py is the list.
     // The COUPLE lever stays on the plate. It is not a parameter.
-    const IRECT top = panelAt(patchview::kTopPanel);
-    const IRECT pleat = panelAt(patchview::kPleatPanel);
-    const IRECT bottom = panelAt(patchview::kBottomPanel);
-    const IRECT slope = panelAt(patchview::kSlopePanel);
-    const IRECT slope2 = panelAt(patchview::kSlope2Panel);
+    const auto at = [&](float x, float y, float w, float h) {
+      return patchview::DesignRect(bounds, x, y, w, h);
+    };
     const IBitmap plate = pGraphics->LoadBitmap("middle_plate.png");
-    const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
     const IBitmap cycle = pGraphics->LoadBitmap("slope_switch.png", 2);
     const IBitmap route = pGraphics->LoadBitmap("slope_route.png", 3);
+    const IColor ink(255, 22, 20, 18);
 
     pGraphics->AttachControl(new ILambdaControl(
         bounds,
         [plate](ILambdaControl*, IGraphics& g, IRECT& r) { g.DrawFittedBitmap(plate, r); },
         0, false, false, kNoParameter, true));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kFoldX), kFold, knob));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kSymX), kIn2, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(pleat), kVcDepth, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(top, 0.50f, 0.36f, 120.f), kTopGain, knob));
-    pGraphics->AttachControl(new IBSwitchControl(SwitchAt(top, 0.30f, 0.62f), cycle, kTopHi));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(bottom, 0.50f, 0.36f, 120.f), kBottomGain, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(AttenAt(bottom), kBottomVc, knob));
 
-    const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(top, 0.50f), kTopGain, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bottom, 0.50f), kBottomGain, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kFoldX), kFold, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kSymX), kIn2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kRiseX), kRise, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kFallX), kFall, knob));
-    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope), kSlopeVc, knob, slopeview::kVcD));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kRiseX), kRise, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kFallX), kFall, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope), cycle, kCycle));
-    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope), kRoute, route));
-    pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope), kRise, kFall, kCycle,
-                                                        [this]() { return GetSampleRate(); }),
+    const struct KnobSpot { int param; float x; float y; float d; } knobs[] = {
+        {kTopGain, 274.f, 176.f, 36.f},
+        {kFold, 668.f, 170.f, 36.f},
+        {kIn2, 940.f, 170.f, 36.f},
+        {kVcDepth, 866.f, 278.f, 30.f},
+        {kBottomGain, 1326.f, 170.f, 36.f},
+        {kBottomVc, 1260.f, 278.f, 30.f},
+        {kRise, 150.f, 648.f, 36.f},
+        {kFall, 330.f, 648.f, 36.f},
+        {kSlopeVc, 520.f, 648.f, 30.f},
+        {kRise2, 946.f, 648.f, 36.f},
+        {kFall2, 1126.f, 648.f, 36.f},
+        {kSlopeVc2, 1316.f, 648.f, 30.f},
+    };
+    for (const KnobSpot& spot : knobs)
+    {
+      auto* control = new patchview::PaperKnob(at(spot.x, spot.y, spot.d + 16.f, spot.d + 16.f), spot.param, spot.d);
+      pGraphics->AttachControl(control);
+    }
+
+    pGraphics->AttachControl(new IBSwitchControl(at(430.f, 300.f, 48.f, 28.f), cycle, kTopHi));
+    pGraphics->AttachControl(new IBSwitchControl(at(150.f, 792.f, 48.f, 28.f), cycle, kCycle));
+    pGraphics->AttachControl(new slopeview::RouteSwitch(at(520.f, 792.f, 48.f, 28.f), kRoute, route));
+    pGraphics->AttachControl(new IBSwitchControl(at(946.f, 792.f, 48.f, 28.f), cycle, kCycle2));
+    pGraphics->AttachControl(new slopeview::RouteSwitch(at(1316.f, 792.f, 48.f, 28.f), kRoute2, route));
+
+    const IText valueText(15.f, ink, "Roboto-Regular", EAlign::Center, EVAlign::Middle);
+    const struct ReadSpot { int param; float x; float y; float w; float h; } reads[] = {
+        {kTopGain, 274.f, 248.f, 72.f, 24.f},
+        {kBottomGain, 1326.f, 236.f, 72.f, 24.f},
+        {kFold, 668.f, 236.f, 72.f, 24.f},
+        {kIn2, 940.f, 236.f, 80.f, 24.f},
+        {kRise, 150.f, 732.f, 84.f, 22.f},
+        {kFall, 330.f, 732.f, 84.f, 22.f},
+        {kRise2, 946.f, 732.f, 84.f, 22.f},
+        {kFall2, 1126.f, 732.f, 84.f, 22.f},
+    };
+    for (const ReadSpot& spot : reads)
+      pGraphics->AttachControl(new ICaptionControl(at(spot.x, spot.y, spot.w, spot.h), spot.param, valueText,
+                                                   COLOR_TRANSPARENT, false));
+
+    pGraphics->AttachControl(new slopeview::RateReadout(at(330.f, 792.f, 88.f, 24.f), kRise, kFall, kCycle,
+                                                        [this]() { return GetSampleRate(); }, ink),
                              kRateTag);
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kRiseX), kRise2, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kFallX), kFall2, knob));
-    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope2), kSlopeVc2, knob, slopeview::kVcD));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kRiseX), kRise2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kFallX), kFall2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope2), cycle, kCycle2));
-    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope2), kRoute2, route));
-    pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope2), kRise2, kFall2, kCycle2,
-                                                        [this]() { return GetSampleRate(); }),
+    pGraphics->AttachControl(new slopeview::RateReadout(at(1126.f, 792.f, 88.f, 24.f), kRise2, kFall2, kCycle2,
+                                                        [this]() { return GetSampleRate(); }, ink),
                              kRate2Tag);
     pGraphics->AttachControl(new patchview::CableControl(bounds, *this), kCableTag);
   };
 #endif
 }
+
+#if IPLUG_EDITOR
+void SergeMiddleCombined::OnParentWindowResize(int width, int height)
+{
+  if (mFittingResize || GetUI() == nullptr)
+    return;
+  const float platform = GetUI()->GetPlatformWindowScale();
+  if (!(platform > 0.f))
+    return;
+  const float w = static_cast<float>(width) / platform;
+  const float h = static_cast<float>(height) / platform;
+  float scale = std::min(w / static_cast<float>(PLUG_WIDTH), h / static_cast<float>(PLUG_HEIGHT));
+  const float lo = static_cast<float>(PLUG_MIN_WIDTH) / static_cast<float>(PLUG_WIDTH);
+  const float hi = static_cast<float>(PLUG_MAX_WIDTH) / static_cast<float>(PLUG_WIDTH);
+  if (scale < lo)
+    scale = lo;
+  if (scale > hi)
+    scale = hi;
+  const float have = GetUI()->GetDrawScale();
+  const float wantW = static_cast<float>(PLUG_WIDTH) * scale;
+  const float wantH = static_cast<float>(PLUG_HEIGHT) * scale;
+  if (std::fabs(w - wantW) < 2.f && std::fabs(h - wantH) < 2.f && std::fabs(have - scale) < 0.01f)
+    return;
+  mFittingResize = true;
+  GetUI()->Resize(PLUG_WIDTH, PLUG_HEIGHT, scale, true);
+  mFittingResize = false;
+}
+#endif
 
 patch::Routing SergeMiddleCombined::RoutingSnapshot() const
 {

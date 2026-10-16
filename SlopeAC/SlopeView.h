@@ -198,13 +198,14 @@ class RateReadout final : public gfx::IControl
 {
 public:
   RateReadout(const gfx::IRECT& bounds, int riseParam, int fallParam, int cycleParam,
-              std::function<double()> sampleRate)
+              std::function<double()> sampleRate,
+              gfx::IColor color = gfx::IColor(235, 238, 240, 245))
   : gfx::IControl(bounds)
   , mRiseParam(riseParam)
   , mFallParam(fallParam)
   , mCycleParam(cycleParam)
   , mSampleRate(std::move(sampleRate))
-  , mText(14.f, gfx::IColor(235, 238, 240, 245), "Roboto-Regular", gfx::EAlign::Center, gfx::EVAlign::Middle)
+  , mText(14.f, color, "Roboto-Regular", gfx::EAlign::Center, gfx::EVAlign::Middle)
   {
     SetIgnoreMouse(true);
   }
