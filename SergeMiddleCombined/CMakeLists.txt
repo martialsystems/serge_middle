@@ -17,6 +17,7 @@ iplug_add_plugin(${PROJECT_NAME}
     SergeMiddleCombined.h
     PatchView.h
     dsp/Patch.h
+    AppMenuBootstrap.mm
   RESOURCES
     resources/middle_plate.png
     resources/middle_plate@2x.png
@@ -27,5 +28,5 @@ iplug_add_plugin(${PROJECT_NAME}
     ../SlopeAC/resources/slope_switch@2x.png
     ../SlopeAC/resources/slope_route.png
     ../SlopeAC/resources/slope_route@2x.png
-  FORMATS VST3
+  FORMATS VST3 APP
 )
