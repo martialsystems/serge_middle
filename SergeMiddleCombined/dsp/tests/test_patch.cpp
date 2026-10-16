@@ -644,6 +644,72 @@ void TestEndJack()
   std::printf("measure end-cable period %d cycle-switch period %d first-peaks %d %d\n",
               cablePeriod, cyclePeriod, cableFirst, cycleFirst);
 }
+
+void TestOsc()
+{
+  const double fs = 48000.0;
+  const int n = 48000;
+  std::FILE* scope = std::fopen("osc_scope.csv", "wb");
+  if (scope != nullptr)
+    std::fprintf(scope, "t_ms,wave,osc_out,pleat_out\n");
+  for (int wave = 0; wave < 3; ++wave)
+  {
+    patch::PatchChannel ch;
+    ch.Reset(fs);
+    patch::Routing routing;
+    patch::SectionControls extra;
+    extra.oscWave = wave;
+    extra.oscFreq = 110.0;
+    extra.oscVolts = patch::OscVoltsFromDb(-12.0);
+    extra.oscToIn1 = true;
+    double peak = 0.0;
+    double pleatPeak = 0.0;
+    int ups = 0;
+    double last = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+      ch.Step(0.0, 0.0, 2.0, 0.0, 0.0, 0.005, 0.005, false, false, routing, 0.0, 1, extra);
+      const double o = ch.OutputVolts(patch::OscOut);
+      const double y = ch.OutputVolts(patch::PleatOut);
+      if (i > 4800)
+      {
+        peak = std::fmax(peak, std::fabs(o));
+        pleatPeak = std::fmax(pleatPeak, std::fabs(y));
+      }
+      if (last < 0.0 && o >= 0.0)
+        ++ups;
+      last = o;
+      if (scope != nullptr && i < 960)
+        std::fprintf(scope, "%.5f,%d,%.6f,%.6f\n", 1000.0 * i / fs, wave, o, y);
+    }
+    Check(peak > 1.1 && peak < 1.45, "osc -12 dB peak is about 1.26 V");
+    Check(ups >= 108 && ups <= 112, "osc runs at 110 Hz");
+    Check(pleatPeak > 0.3, "osc normalled into IN 1 sounds at PLEAT OUT");
+    std::printf("measure osc wave %d peak %.3f V cycles %d pleat peak %.3f V\n", wave, peak, ups, pleatPeak);
+  }
+  if (scope != nullptr)
+    std::fclose(scope);
+
+  // With TO IN 1 off, the osc running changes nothing at PLEAT OUT.
+  patch::PatchChannel a;
+  patch::PatchChannel b;
+  a.Reset(fs);
+  b.Reset(fs);
+  patch::Routing routing;
+  patch::SectionControls on;
+  on.oscVolts = 5.0;
+  on.oscWave = 1;
+  bool same = true;
+  for (int i = 0; i < 4800; ++i)
+  {
+    const double host = 0.5 * std::sin(2.0 * 3.14159265358979 * 220.0 * i / fs);
+    const double ya = a.Step(host, 0.0, 2.0, 0.0, 0.0, 0.005, 0.005, false, false, routing, 0.0, 1, {});
+    const double yb = b.Step(host, 0.0, 2.0, 0.0, 0.0, 0.005, 0.005, false, false, routing, 0.0, 1, on);
+    if (ya != yb)
+      same = false;
+  }
+  Check(same, "osc with TO IN 1 off is bit-identical at PLEAT OUT");
+}
 } // namespace
 
 int main()
@@ -657,6 +723,7 @@ int main()
   TestMeters();
   TestGateNotes();
   TestEndJack();
+  TestOsc();
   if (gFailures != 0)
   {
     std::printf("%d failed\n", gFailures);
