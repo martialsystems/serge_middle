@@ -272,6 +272,21 @@ def check_more_peaks(cols, check, fs):
     return f"peaks {before} then {after}"
 
 
+def check_jacks_differ(cols, check, fs):
+    left = column(cols, check["jack"])
+    right = column(cols, check["other_jack"])
+    i0, i1 = window(check, len(left), fs)
+    if i1 <= i0:
+        raise CheckError("empty window")
+    if i1 > len(right):
+        raise CheckError("other jack is shorter than this window")
+    rms = math.sqrt(sum((a - b) ** 2 for a, b in zip(left[i0:i1], right[i0:i1])) / (i1 - i0))
+    floor = float(check.get("min_rms", 0.02))
+    if rms < floor:
+        raise CheckError(f"rms difference {rms:.6g} V, want at least {floor:g}")
+    return f"rms difference {rms:.6g} V"
+
+
 def check_windows_differ(cols, check, fs):
     values = column(cols, check["jack"])
     a0, a1 = [int(round(ms * fs / 1000.0)) for ms in check["a_ms"]]
@@ -326,6 +341,7 @@ CHECKS = {
     "asymmetry": check_asymmetry,
     "more_peaks": check_more_peaks,
     "windows_differ": check_windows_differ,
+    "jacks_differ": check_jacks_differ,
 }
 
 
@@ -334,7 +350,19 @@ def output_jacks(engine: str, cols: dict[str, list[float]]) -> list[str]:
         return [name for name in ("out", "end", "ac", "ac_coupled") if name in cols]
     if engine == "pleat":
         return ["out"] if "out" in cols else []
-    return [name for name in ("pleat_out", "slope_end", "slope_out", "slope_ac") if name in cols]
+    names = (
+        "pleat_out",
+        "slope_end",
+        "slope_out",
+        "slope_ac",
+        "top_out",
+        "bottom_out1",
+        "bottom_out2",
+        "slope2_end",
+        "slope2_out",
+        "slope2_ac",
+    )
+    return [name for name in names if name in cols]
 
 
 def automatic_checks(engine: str, cols: dict[str, list[float]]) -> list[tuple[str, bool, str]]:
@@ -351,45 +379,45 @@ def automatic_checks(engine: str, cols: dict[str, list[float]]) -> list[tuple[st
     else:
         results.append(("finite", True, "every jack is finite"))
 
+    pairs = []
+    ac = None
     if engine == "slope":
-        out = cols["out"]
-        end = cols["end"]
+        pairs.append(("out", "end"))
         ac = cols["ac"]
     elif engine == "patch":
-        out = cols["slope_out"]
-        end = cols["slope_end"]
-        ac = None
-    else:
-        out = None
-        end = None
-        ac = None
+        pairs.append(("slope_out", "slope_end"))
+        if "slope2_out" in cols and "slope2_end" in cols:
+            pairs.append(("slope2_out", "slope2_end"))
 
-    if out is not None and end is not None:
-        problem = None
-        for i, (level, gate) in enumerate(zip(out, end)):
+    end_problem = None
+    for out_name, end_name in pairs:
+        for i, (level, gate) in enumerate(zip(cols[out_name], cols[end_name])):
             if abs(gate) > 1e-9 and abs(gate - 5.0) > 1e-9:
-                problem = f"sample {i} END is {gate:.6g} V, want 0 or 5"
+                end_problem = f"{end_name} sample {i} is {gate:.6g} V, want 0 or 5"
                 break
             if abs(level) <= 1e-12 and abs(gate - 5.0) > 1e-9:
-                problem = f"sample {i} OUT is 0 and END is {gate:.6g}"
+                end_problem = f"{out_name} sample {i} is 0 and END is {gate:.6g}"
                 break
             if level >= 4.0 and abs(gate) > 1e-9:
-                problem = f"sample {i} OUT is {level:.6g} and END is {gate:.6g}"
+                end_problem = f"{out_name} sample {i} is {level:.6g} and END is {gate:.6g}"
                 break
-        if problem:
-            results.append(("end_law", False, problem))
+        if end_problem:
+            break
+    if pairs:
+        if end_problem:
+            results.append(("end_law", False, end_problem))
         else:
             results.append(("end_law", True, "END is 0 V or +5 V, high at 0 V, low from 4 V up"))
 
-    if ac is not None and out is not None:
-        worst = max(abs(a - (2.5 - level)) for a, level in zip(ac, out))
+    if ac is not None and "out" in cols:
+        worst = max(abs(a - (2.5 - level)) for a, level in zip(ac, cols["out"]))
         if worst > 1e-9:
             results.append(("ac_identity", False, f"AC differs from 2.5 - OUT by {worst:.3g} V"))
         else:
             results.append(("ac_identity", True, "AC = 2.5 - OUT"))
 
     limit = 5.0 + 1e-6
-    unipolar = {"out"} if engine == "slope" else {"slope_out"} if engine == "patch" else set()
+    unipolar = {"out"} if engine == "slope" else {"slope_out", "slope2_out"} if engine == "patch" else set()
     problem = None
     for name in output_jacks(engine, cols):
         values = cols[name]
@@ -411,13 +439,15 @@ def compare_golden(cols: dict[str, list[float]], golden: Path, tol: float) -> st
     if not golden.exists():
         raise CheckError(f"missing golden {golden.name}")
     ref = read_csv(golden)
-    if list(cols) != list(ref):
-        raise CheckError(f"columns {list(cols)} vs {list(ref)}")
+    got_names = list(cols)
+    ref_names = list(ref)
+    if got_names[: len(ref_names)] != ref_names:
+        raise CheckError(f"columns {got_names} vs {ref_names}")
     if len(cols["sample"]) != len(ref["sample"]):
         raise CheckError(f"length {len(cols['sample'])} vs {len(ref['sample'])}")
     worst = 0.0
     where = ""
-    for name in cols:
+    for name in ref_names:
         if name == "sample":
             continue
         for i, (got, want) in enumerate(zip(cols[name], ref[name])):

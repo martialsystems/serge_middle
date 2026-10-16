@@ -17,6 +17,31 @@ namespace
 {
 constexpr int kCableTag = 100;
 constexpr int kRateTag = 101;
+constexpr int kRate2Tag = 102;
+
+IRECT KnobAt(const IRECT& plate, float xFrac, float yFrac, float diameter)
+{
+  const float cx = plate.L + xFrac * plate.W();
+  const float cy = plate.T + yFrac * plate.H();
+  const float half = 0.5f * diameter + 14.f;
+  return IRECT(cx - half, cy - half, cx + half, cy + half);
+}
+
+IRECT SwitchAt(const IRECT& plate, float xFrac, float yFrac)
+{
+  const float cx = plate.L + xFrac * plate.W();
+  const float cy = plate.T + yFrac * plate.H();
+  return IRECT(cx - 24.f, cy - 14.f, cx + 24.f, cy + 14.f);
+}
+
+IRECT AttenAt(const IRECT& plate)
+{
+  // 0.39 of a 416-wide panel, 44 px cap, same pad as the PLEAT VC Depth knob.
+  const float cx = plate.L + 162.24f;
+  const float cy = plate.T + 396.f;
+  const float half = 30.f;
+  return IRECT(cx - half, cy - half, cx + half, cy + half);
+}
 
 void ShowTime(double value, WDL_String& display)
 {
@@ -61,6 +86,19 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kSlopeVc)->InitDouble("Slope VC", 0.0, -1.0, 1.0, 0.001);
   GetParam(kRoute)->InitInt("Route", 1, 0, 2);
   GetParam(kRoute)->SetDisplayFunc(ShowRoute);
+  // Appended after Route. An older project keeps the eight above and loads these at the defaults.
+  GetParam(kTopGain)->InitDouble("Top Gain", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kTopHi)->InitBool("Top HI", false);
+  GetParam(kBottomGain)->InitDouble("Bottom Level", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kBottomVc)->InitDouble("Bottom VC", 1.0, 0.0, 1.0, 0.001);
+  GetParam(kRise2)->InitDouble("Rise 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kFall2)->InitDouble("Fall 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kRise2)->SetDisplayFunc(ShowTime);
+  GetParam(kFall2)->SetDisplayFunc(ShowTime);
+  GetParam(kCycle2)->InitBool("Cycle 2", false);
+  GetParam(kSlopeVc2)->InitDouble("Slope VC 2", 0.0, -1.0, 1.0, 0.001);
+  GetParam(kRoute2)->InitInt("Route 2", 1, 0, 2);
+  GetParam(kRoute2)->SetDisplayFunc(ShowRoute);
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -73,9 +111,18 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
     pGraphics->AttachTextEntryControl();
 
     const IRECT bounds = pGraphics->GetBounds();
-    const float mid = bounds.L + 0.5f * bounds.W();
-    const IRECT pleat(bounds.L, bounds.T, mid, bounds.B);
-    const IRECT slope(mid, bounds.T, bounds.R, bounds.B);
+    const float panelW = bounds.W() / static_cast<float>(patchview::kPanelCount);
+    const auto panelAt = [&](int index) {
+      const float x0 = bounds.L + static_cast<float>(index) * panelW;
+      return IRECT(x0, bounds.T, x0 + panelW, bounds.B);
+    };
+    // Panel 0 top, 1 PLEAT, 2 bottom, 3 slope 1, 4 slope 2.
+    // The COUPLE lever stays on the plate. It is not a parameter.
+    const IRECT top = panelAt(patchview::kTopPanel);
+    const IRECT pleat = panelAt(patchview::kPleatPanel);
+    const IRECT bottom = panelAt(patchview::kBottomPanel);
+    const IRECT slope = panelAt(patchview::kSlopePanel);
+    const IRECT slope2 = panelAt(patchview::kSlope2Panel);
     const IBitmap plate = pGraphics->LoadBitmap("middle_plate.png");
     const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
     const IBitmap cycle = pGraphics->LoadBitmap("slope_switch.png", 2);
@@ -87,9 +134,17 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
         0, false, false, kNoParameter, true));
     pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kFoldX), kFold, knob));
     pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kSymX), kIn2, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(bounds), kVcDepth, knob));
+    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(pleat), kVcDepth, knob));
+    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(top, 0.50f, 0.36f, 120.f), kTopGain, knob));
+    pGraphics->AttachControl(new IBSwitchControl(SwitchAt(top, 0.30f, 0.62f), cycle, kTopHi));
+    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(bottom, 0.50f, 0.36f, 120.f), kBottomGain, knob));
+    pGraphics->AttachControl(new patchview::DepthKnob(AttenAt(bottom), kBottomVc, knob));
 
     const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
+    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(top, 0.50f), kTopGain, valueText,
+                                                 COLOR_TRANSPARENT, false));
+    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bottom, 0.50f), kBottomGain, valueText,
+                                                 COLOR_TRANSPARENT, false));
     pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kFoldX), kFold, valueText,
                                                  COLOR_TRANSPARENT, false));
     pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kSymX), kIn2, valueText,
@@ -106,6 +161,18 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
     pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope), kRise, kFall, kCycle,
                                                         [this]() { return GetSampleRate(); }),
                              kRateTag);
+    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kRiseX), kRise2, knob));
+    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kFallX), kFall2, knob));
+    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope2), kSlopeVc2, knob, slopeview::kVcD));
+    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kRiseX), kRise2, valueText,
+                                                 COLOR_TRANSPARENT, false));
+    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kFallX), kFall2, valueText,
+                                                 COLOR_TRANSPARENT, false));
+    pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope2), cycle, kCycle2));
+    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope2), kRoute2, route));
+    pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope2), kRise2, kFall2, kCycle2,
+                                                        [this]() { return GetSampleRate(); }),
+                             kRate2Tag);
     pGraphics->AttachControl(new patchview::CableControl(bounds, *this), kCableTag);
   };
 #endif
@@ -145,11 +212,14 @@ void SergeMiddleCombined::JackMeter(int index, float& lo, float& hi) const
 #if IPLUG_EDITOR
 void SergeMiddleCombined::OnParamChangeUI(int paramIdx, EParamSource)
 {
-  if (paramIdx != kRise && paramIdx != kFall && paramIdx != kCycle)
+  const bool slope1 = paramIdx == kRise || paramIdx == kFall || paramIdx == kCycle;
+  const bool slope2 = paramIdx == kRise2 || paramIdx == kFall2 || paramIdx == kCycle2;
+  if (!slope1 && !slope2)
     return;
   if (GetUI() == nullptr)
     return;
-  if (IControl* rate = GetUI()->GetControlWithTag(kRateTag))
+  const int tag = slope1 ? kRateTag : kRate2Tag;
+  if (IControl* rate = GetUI()->GetControlWithTag(tag))
     rate->SetDirty(false);
 }
 #endif
@@ -187,10 +257,15 @@ void SergeMiddleCombined::OnReset()
     fs = slope::kFs;
   mFold.Reset(GetParam(kFold)->Value(), fs);
   mSymmetry.Reset(GetParam(kIn2)->Value(), fs);
+  mTopGain.Reset(GetParam(kTopGain)->Value(), fs);
+  mBottomGain.Reset(GetParam(kBottomGain)->Value(), fs);
+  mBottomVc.Reset(GetParam(kBottomVc)->Value(), fs);
   for (auto& channel : mChannels)
     channel.Reset(fs);
   mCycle = GetParam(kCycle)->Bool();
   mArm = mCycle;
+  mCycle2 = GetParam(kCycle2)->Bool();
+  mArm2 = mCycle2;
 }
 
 void SergeMiddleCombined::ProcessMidiMsg(const IMidiMsg& msg)
@@ -204,6 +279,10 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
   if (cycle && !mCycle)
     mArm = true;
   mCycle = cycle;
+  const bool cycle2 = GetParam(kCycle2)->Bool();
+  if (cycle2 && !mCycle2)
+    mArm2 = true;
+  mCycle2 = cycle2;
 
   const double foldTarget = GetParam(kFold)->Value();
   const double in2Target = GetParam(kIn2)->Value();
@@ -233,11 +312,22 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
     const double slopeDepth = GetParam(kSlopeVc)->Value();
     const int route = GetParam(kRoute)->Int();
     const bool arm = cycle && mArm;
+    patch::SectionControls extra;
+    extra.topGain = mTopGain.Step(GetParam(kTopGain)->Value());
+    extra.topHi = GetParam(kTopHi)->Bool();
+    extra.bottomGain = mBottomGain.Step(GetParam(kBottomGain)->Value());
+    extra.bottomDepth = mBottomVc.Step(GetParam(kBottomVc)->Value());
+    extra.rise2 = GetParam(kRise2)->Value();
+    extra.fall2 = GetParam(kFall2)->Value();
+    extra.cycle2 = cycle2;
+    extra.arm2 = cycle2 && mArm2;
+    extra.slope2Depth = GetParam(kSlopeVc2)->Value();
+    extra.slope2Route = GetParam(kRoute2)->Int();
     for (int c = 0; c < nChans; ++c)
     {
       const double host = static_cast<double>(inputs[c][s]);
       const double y = mChannels[c].Step(host, gate, gS, sS, depth, rise, fall, cycle, arm, routing,
-                                         slopeDepth, route);
+                                         slopeDepth, route, extra);
       outputs[c][s] = static_cast<sample>(y);
       if (c == 0)
       {
@@ -249,6 +339,8 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
     }
     if (arm && nChans > 0)
       mArm = false;
+    if (extra.arm2 && nChans > 0)
+      mArm2 = false;
   }
 
   mMidiQueue.Flush(nFrames);
@@ -282,8 +374,28 @@ int SergeMiddleCombined::UnserializeState(const IByteChunk& chunk, int startPos)
     uint8_t bytes[patch::kRoutingBytes];
     if (chunk.GetBytes(bytes, patch::kRoutingBytes, pos) >= 0)
     {
-      consumed = patch::kRoutingBytes;
-      if (!patch::ParseRouting(bytes, static_cast<size_t>(patch::kRoutingBytes), routing))
+      // A version 1 header is the old nine-byte block, even when a tail follows it.
+      if (bytes[0] == patch::kRoutingMagic && bytes[1] == patch::kLegacyRoutingVersion)
+      {
+        consumed = patch::kLegacyRoutingBytes;
+        if (!patch::ParseRouting(bytes, static_cast<size_t>(patch::kLegacyRoutingBytes), routing))
+          routing.Clear();
+      }
+      else
+      {
+        consumed = patch::kRoutingBytes;
+        if (!patch::ParseRouting(bytes, static_cast<size_t>(patch::kRoutingBytes), routing))
+          routing.Clear();
+      }
+    }
+  }
+  else if (chunk.Size() - pos >= patch::kLegacyRoutingBytes)
+  {
+    uint8_t bytes[patch::kLegacyRoutingBytes];
+    if (chunk.GetBytes(bytes, static_cast<int>(patch::kLegacyRoutingBytes), pos) >= 0)
+    {
+      consumed = patch::kLegacyRoutingBytes;
+      if (!patch::ParseRouting(bytes, static_cast<size_t>(patch::kLegacyRoutingBytes), routing))
         routing.Clear();
     }
   }
@@ -294,6 +406,8 @@ int SergeMiddleCombined::UnserializeState(const IByteChunk& chunk, int startPos)
       cables->SetDirty(false);
     if (IControl* rate = GetUI()->GetControlWithTag(kRateTag))
       rate->SetDirty(false);
+    if (IControl* rate2 = GetUI()->GetControlWithTag(kRate2Tag))
+      rate2->SetDirty(false);
   }
   return pos + consumed;
 }

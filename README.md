@@ -1,6 +1,6 @@
 # Serge middle
 
-PLEAT and the slope generator are the two parts of this instrument. Each one is a panel. `SergeMiddleCombined/` puts the two panels side by side, with patch jacks between them.
+PLEAT and the slope generator are two parts of this instrument. Each one is a panel. `SergeMiddleCombined/` puts five panels side by side: the Wave Multipliers top, PLEAT, the Wave Multipliers bottom, and two slope sections. Patch jacks between the panels are in the audio path.
 
 PLEAT is the middle section of the Serge Wave Multipliers, six identical cells in series, and the folder effect in `SergeMiddle/`. The slope generator is one universal slope in `slope/`, from 0 V to +5 V. The second half is the same circuit with its own state. Its AC jack is `AC = 2.5 - OUT`, and `SlopeAC/` is that half as a VST3. Rise and Fall default to 5 ms. Cycle defaults to off, and the host sample is the coupled AC / 2.5. The later slope panel mark is a rise and a fall, one peak.
 

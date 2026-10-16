@@ -22,6 +22,15 @@ enum EParams
   kCycle,
   kSlopeVc,
   kRoute,
+  kTopGain,
+  kTopHi,
+  kBottomGain,
+  kBottomVc,
+  kRise2,
+  kFall2,
+  kCycle2,
+  kSlopeVc2,
+  kRoute2,
   kNumParams
 };
 
@@ -61,10 +70,15 @@ private:
   static constexpr int kMaxChannels = 2;
   serge::FoldSmoother mFold;
   serge::SymmetrySmoother mSymmetry;
+  vcm::GainSmoother mTopGain;
+  vcm::GainSmoother mBottomGain;
+  vcm::GainSmoother mBottomVc;
   patch::PatchChannel mChannels[kMaxChannels];
   patch::GateNotes mNotes;
   IMidiQueue mMidiQueue;
   bool mCycle = false;
   bool mArm = false;
+  bool mCycle2 = false;
+  bool mArm2 = false;
 #endif
 };

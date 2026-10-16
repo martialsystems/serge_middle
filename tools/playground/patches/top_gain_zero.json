@@ -1,0 +1,13 @@
+{
+  "name": "top_gain_zero",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 20,
+  "note": "Top gain fully CCW is silence in LO, including with a full-scale sine on IN.",
+  "params": {"top_gain": 0.0, "top_hi": false},
+  "signals": {"top_in": {"type": "sine", "freq_hz": 440, "amp": 2.5}},
+  "golden_abs_tol": 1e-9,
+  "checks": [
+    {"id": "silent", "type": "silent", "jack": "top_out", "max_abs": 0.0}
+  ]
+}

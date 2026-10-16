@@ -3,9 +3,10 @@
 // Editor for the combined plate. ProcessBlock does not include this header.
 // Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 //
-// The plate art carries the lettering. This file draws the knobs, the Cycle
-// switch is attached by the plugin, and this control draws cables and hover
-// labels. Jack fractions match middle_plate.svg.
+// The plate art carries the lettering. This file draws the live knobs, the
+// Cycle switch is attached by the plugin, and this control draws cables and
+// hover labels. Five panels: top, PLEAT, bottom, slope 1, slope 2.
+// Jack fractions match middle_plate.svg. The COUPLE lever is plate art only.
 
 #include "SergeMiddleCombined.h"
 
@@ -29,29 +30,50 @@ struct JackRef
   bool output;
   int index;
   float xFrac;
-  bool slope;
+  int panel;
   const char* label;
 };
 
-inline constexpr int kJackCount = 10;
+// middle_plate.png is five panels of equal width, left to right.
+inline constexpr int kPanelCount = 5;
+inline constexpr int kTopPanel = 0;
+inline constexpr int kPleatPanel = 1;
+inline constexpr int kBottomPanel = 2;
+inline constexpr int kSlopePanel = 3;
+inline constexpr int kSlope2Panel = 4;
+
+inline constexpr int kJackCount = 23;
 inline constexpr JackRef kJacks[kJackCount] = {
-    {false, patch::PleatIn1, 0.18f, false, "PLEAT IN 1"},
-    {false, patch::PleatIn2, 0.39f, false, "PLEAT IN 2"},
-    {false, patch::PleatVc, 0.61f, false, "PLEAT VC"},
-    {true, patch::PleatOut, 0.82f, false, "PLEAT OUT"},
-    {false, patch::SlopeIn, 0.12f, true, "SLOPE IN"},
-    {false, patch::SlopeTrig, 0.27f, true, "SLOPE TRIG"},
-    {false, patch::SlopeVc, 0.42f, true, "SLOPE VC"},
-    {true, patch::SlopeEnd, 0.58f, true, "SLOPE END"},
-    {true, patch::SlopeOut, 0.73f, true, "SLOPE OUT"},
-    {true, patch::SlopeAc, 0.88f, true, "SLOPE AC"},
+    {false, patch::PleatIn1, 0.18f, kPleatPanel, "PLEAT IN 1"},
+    {false, patch::PleatIn2, 0.39f, kPleatPanel, "PLEAT IN 2"},
+    {false, patch::PleatVc, 0.61f, kPleatPanel, "PLEAT VC"},
+    {true, patch::PleatOut, 0.82f, kPleatPanel, "PLEAT OUT"},
+    {false, patch::SlopeIn, 0.12f, kSlopePanel, "SLOPE IN"},
+    {false, patch::SlopeTrig, 0.27f, kSlopePanel, "SLOPE TRIG"},
+    {false, patch::SlopeVc, 0.42f, kSlopePanel, "SLOPE VC"},
+    {true, patch::SlopeEnd, 0.58f, kSlopePanel, "SLOPE END"},
+    {true, patch::SlopeOut, 0.73f, kSlopePanel, "SLOPE OUT"},
+    {true, patch::SlopeAc, 0.88f, kSlopePanel, "SLOPE AC"},
+    {false, patch::TopIn, 0.22f, kTopPanel, "TOP IN"},
+    {false, patch::TopVc, 0.50f, kTopPanel, "TOP VC"},
+    {true, patch::TopOut, 0.78f, kTopPanel, "TOP OUT"},
+    {false, patch::BottomIn, 0.18f, kBottomPanel, "BOTTOM IN"},
+    {false, patch::BottomVc, 0.39f, kBottomPanel, "BOTTOM VC"},
+    {true, patch::BottomOut1, 0.61f, kBottomPanel, "BOTTOM OUT 1"},
+    {true, patch::BottomOut2, 0.82f, kBottomPanel, "BOTTOM OUT 2"},
+    {false, patch::Slope2In, 0.12f, kSlope2Panel, "SLOPE 2 IN"},
+    {false, patch::Slope2Trig, 0.27f, kSlope2Panel, "SLOPE 2 TRIG"},
+    {false, patch::Slope2Vc, 0.42f, kSlope2Panel, "SLOPE 2 VC"},
+    {true, patch::Slope2End, 0.58f, kSlope2Panel, "SLOPE 2 END"},
+    {true, patch::Slope2Out, 0.73f, kSlope2Panel, "SLOPE 2 OUT"},
+    {true, patch::Slope2Ac, 0.88f, kSlope2Panel, "SLOPE 2 AC"},
 };
 
-// VC Depth sits on the PLEAT half. Centre and diameter are window pixels.
-inline gfx::IRECT DepthBounds(const gfx::IRECT& window)
+// VC Depth sits on the PLEAT panel. 253.76 is 0.61 of a 416-wide panel.
+inline gfx::IRECT DepthBounds(const gfx::IRECT& pleat)
 {
-  const float cx = window.L + 253.76f;
-  const float cy = window.T + 396.f;
+  const float cx = pleat.L + 253.76f;
+  const float cy = pleat.T + 396.f;
   const float half = 22.f + 8.f;
   return gfx::IRECT(cx - half, cy - half, cx + half, cy + half);
 }
@@ -255,8 +277,8 @@ private:
   void JackCentre(int index, float& x, float& y) const
   {
     const JackRef& jack = kJacks[index];
-    const float panelW = mRECT.W() * 0.5f;
-    const float origin = jack.slope ? mRECT.L + panelW : mRECT.L;
+    const float panelW = mRECT.W() / static_cast<float>(kPanelCount);
+    const float origin = mRECT.L + static_cast<float>(jack.panel) * panelW;
     x = origin + jack.xFrac * panelW;
     y = mRECT.T + kJackY * mRECT.H();
   }

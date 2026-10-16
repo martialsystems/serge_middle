@@ -1,0 +1,64 @@
+{
+  "name": "slope2_cycles",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 115,
+  "note": "Slope 2 Cycle switch, same times as slope_cycles. Slope 1 stays idle. Slope 2 OUT matches the standalone slope OUT.",
+  "params": {"cycle2": true, "vc_depth2": 0.0, "route2": "both"},
+  "segments": [
+    {
+      "t0_ms": 0,
+      "t1_ms": 100,
+      "reset": true,
+      "params": {"rise2_s": 0.005, "fall2_s": 0.005, "cycle2": true}
+    },
+    {
+      "t0_ms": 100,
+      "t1_ms": 115,
+      "reset": true,
+      "params": {"rise2_s": 0.0004, "fall2_s": 0.001, "cycle2": true}
+    }
+  ],
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {"id": "slope1_idle", "type": "hold", "jack": "slope_out", "t0_ms": 0, "t1_ms": 115, "volts": 0.0, "tol": 0.0},
+    {
+      "id": "period_5ms",
+      "type": "period",
+      "jack": "slope2_out",
+      "t0_ms": 0,
+      "t1_ms": 100,
+      "samples": 480
+    },
+    {
+      "id": "period_fast",
+      "type": "period",
+      "jack": "slope2_out",
+      "t0_ms": 100,
+      "t1_ms": 115,
+      "samples": 67
+    },
+    {
+      "id": "matches_slope",
+      "type": "matches_other",
+      "jack": "slope2_out",
+      "t0_ms": 0,
+      "t1_ms": 115,
+      "other": "slope_cycles",
+      "other_rate": 48000,
+      "other_jack": "out",
+      "tol": 1e-9
+    },
+    {
+      "id": "ac_matches",
+      "type": "matches_other",
+      "jack": "slope2_ac",
+      "t0_ms": 0,
+      "t1_ms": 115,
+      "other": "slope_cycles",
+      "other_rate": 48000,
+      "other_jack": "ac_coupled",
+      "tol": 1e-9
+    }
+  ]
+}

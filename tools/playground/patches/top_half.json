@@ -1,0 +1,13 @@
+{
+  "name": "top_half",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 40,
+  "note": "Top LO at gain 0.5 is half of unity. The peak sits near 1.25 V.",
+  "params": {"top_gain": 0.5, "top_hi": false},
+  "signals": {"top_in": {"type": "sine", "freq_hz": 440, "amp": 2.5}},
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {"id": "level", "type": "peak_abs", "jack": "top_out", "skip_ms": 20, "min": 1.05, "max": 1.35}
+  ]
+}

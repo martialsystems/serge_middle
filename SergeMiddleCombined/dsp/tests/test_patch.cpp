@@ -368,7 +368,7 @@ void TestSerialize()
   routing.Connect(patch::SlopeAc, patch::SlopeVc);
   std::vector<uint8_t> bytes{1, 2, 3};
   patch::SerializeRouting(routing, bytes);
-  Check(bytes.size() == static_cast<size_t>(patch::kRoutingBytes), "routing blob is 9 bytes");
+  Check(bytes.size() == static_cast<size_t>(patch::kRoutingBytes), "routing blob matches kRoutingBytes");
   Check(bytes.size() >= 3 && bytes[0] == patch::kRoutingMagic && bytes[1] == patch::kRoutingVersion && bytes[2] == patch::kNumInputs,
         "magic, version, count");
   patch::Routing back;
@@ -403,6 +403,27 @@ void TestSerialize()
   patch::Routing cleared;
   cleared.Connect(patch::SlopeOut, patch::SlopeIn);
   Check(patch::ParseRouting(open, 9, cleared) && RoutingClear(cleared), "0xFF is unpatched");
+
+  uint8_t legacy[9] = {0x52, 1, 6, 0, 255, 255, 255, 2, 255};
+  patch::Routing old;
+  old.Connect(patch::TopOut, patch::TopIn);
+  Check(patch::ParseRouting(legacy, 9, old), "version 1 still parses");
+  Check(old.source[patch::PleatIn1] == patch::PleatOut, "version 1 keeps PLEAT OUT on IN 1");
+  Check(old.source[patch::SlopeTrig] == patch::SlopeOut, "version 1 keeps slope OUT on TRIG");
+  Check(old.source[patch::TopIn] == -1 && old.source[patch::Slope2In] == -1,
+        "version 1 leaves the new inputs unpatched");
+
+  patch::Routing grown;
+  grown.Connect(patch::TopOut, patch::TopIn);
+  grown.Connect(patch::Slope2Out, patch::BottomIn);
+  std::vector<uint8_t> now;
+  patch::SerializeRouting(grown, now);
+  Check(now.size() == static_cast<size_t>(patch::kRoutingBytes) && now[1] == patch::kRoutingVersion,
+        "version 2 is the blob that gets written");
+  patch::Routing back2;
+  Check(patch::ParseRouting(now.data(), now.size(), back2), "version 2 round trip parses");
+  Check(back2.source[patch::TopIn] == patch::TopOut && back2.source[patch::BottomIn] == patch::Slope2Out,
+        "version 2 keeps a source past the old four outputs");
 }
 
 void TestMeters()

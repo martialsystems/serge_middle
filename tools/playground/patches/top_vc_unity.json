@@ -1,0 +1,25 @@
+{
+  "name": "top_vc_unity",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 40,
+  "note": "Top has no VC attenuator. Gain 0 plus +5 V on VC is the same control as gain 1.",
+  "params": {"top_gain": 0.0, "top_hi": false},
+  "signals": {
+    "top_in": {"type": "sine", "freq_hz": 440, "amp": 2.5},
+    "top_vc": {"type": "dc", "volts": 5.0}
+  },
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {
+      "id": "matches_unity",
+      "type": "matches_other",
+      "jack": "top_out",
+      "t0_ms": 0,
+      "t1_ms": 40,
+      "other": "top_lo_unity",
+      "other_jack": "top_out",
+      "tol": 1e-12
+    }
+  ]
+}

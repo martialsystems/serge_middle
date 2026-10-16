@@ -1,8 +1,8 @@
 # Serge Middle
 
-`SergeMiddleCombined` is PLEAT and the slope generator in one VST3. The left half is the PLEAT panel. The right half is the slope panel. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
+`SergeMiddleCombined` is the Wave Multipliers module and two slope sections in one VST3. The plate is five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
 
-Window: 832 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the knobs, the Cycle switch, the value captions, the rate readout, the cables, and the hover labels.
+Window: 2080 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the knobs, the switches, the value captions, the rate readouts, the cables, and the hover labels. The top COUPLE lever is drawn on the plate and is not a parameter.
 
 ## Parameters
 
@@ -16,8 +16,17 @@ Window: 832 by 624. Format: VST3, via Unix Makefiles. The plate art holds the le
 | 5 | Cycle | off by default |
 | 6 | Slope VC | -1 to +1, default 0, linear. Attenuverter in front of the slope VC jack |
 | 7 | Route | 0 RISE, 1 BOTH, 2 FALL, default BOTH |
+| 8 | Top Gain | 0 to 1, default 0, linear, smoothed 20 ms |
+| 9 | Top HI | off is LO, on is HI, default LO |
+| 10 | Bottom Level | 0 to 1, default 0, linear, smoothed 20 ms |
+| 11 | Bottom VC | 0 to 1, default 1, linear, smoothed 20 ms. Attenuator in front of the bottom VC jack |
+| 12 | Rise 2 | 0.0001 s to 10 s, default 5 ms, same law as Rise |
+| 13 | Fall 2 | 0.0001 s to 10 s, default 5 ms, same law as Fall |
+| 14 | Cycle 2 | off by default. Same arm as Cycle, for slope 2 |
+| 15 | Slope VC 2 | -1 to +1, default 0, linear. Attenuverter in front of slope 2 VC |
+| 16 | Route 2 | 0 RISE, 1 BOTH, 2 FALL, default BOTH |
 
-Fold and IN 2 DC are smoothed once per audio sample, shared by the left and right channels, and held across the four oversampled phases. Rise, Fall, Slope VC, and Route are read per sample. Cycle is read once per block. VC Depth is read once per block and is not smoothed. Slope VC and Route were appended after Cycle so a project saved before them restores the first six parameters and loads these two at the defaults. Default 0 and BOTH pass no slope VC, which is the unpatched jack.
+Fold and IN 2 DC are smoothed once per audio sample, shared by the left and right channels, and held across the four oversampled phases. Top Gain, Bottom Level, and Bottom VC use that same 20 ms smoother, also shared, and Reset starts them at the target so a constant knob is exact from the first sample. Rise, Fall, Slope VC, and Route are read per sample. Cycle is read once per block. VC Depth is read once per block and is not smoothed. Slope VC and Route were appended after Cycle so a project saved before them restores the first six parameters and loads these two at the defaults. Top Gain through Route 2 were appended after Route, so a project saved before them keeps the first eight and loads the new knobs at the defaults. Default 0 and BOTH pass no slope VC, which is the unpatched jack. Bottom VC defaults to 1, so a patched bottom VC is full scale until the attenuator is turned down.
 
 ## Jacks
 
@@ -31,6 +40,13 @@ Inputs and outputs are separate lists.
 | SLOPE IN | Volts into the slope input. No extra gain |
 | SLOPE TRIG | Volts. A rising edge starts a slope. A level that has stayed high since that edge holds at +5 V until it goes low. A later pulse does not hold, and a new edge is ignored until the output is back at 0 V. A signal on SLOPE IN overrides TRIG |
 | SLOPE VC | Volts into the slope time control, after the Slope VC attenuverter and the Route switch |
+| TOP IN | AC coupled by the 10 Hz block, then the top VCA |
+| TOP VC | Volts added to Top Gain. +5 V adds 1. Not smoothed. No attenuator knob |
+| BOTTOM IN | AC coupled by the 10 Hz block, then the rectifier |
+| BOTTOM VC | Volts added to Bottom Level, after the Bottom VC attenuator |
+| SLOPE 2 IN | Volts into the second slope input. Same circuit as SLOPE IN |
+| SLOPE 2 TRIG | Volts. Same trigger rules as SLOPE TRIG. No MIDI normal |
+| SLOPE 2 VC | Volts into the second slope time control, after Slope VC 2 and Route 2 |
 
 | Output | Voltage |
 | --- | --- |
@@ -38,6 +54,12 @@ Inputs and outputs are separate lists.
 | SLOPE END | 0 V or +5 V. +5 V while the circuit end gate is high and slope OUT is below 4 V. Otherwise 0 V. Idle, with OUT at 0 V, is +5 V. The same `EndJackVolts` law as the standalone slope |
 | SLOPE OUT | The slope sample, 0 V to +5 V |
 | SLOPE AC | The 10 Hz block of (circuit AC - 2.5), in volts. Circuit AC is 2.5 - OUT |
+| TOP OUT | The top section, after its 10 Hz block, hard-clamped to ±5 V |
+| BOTTOM OUT 1 | Level-compensated full-wave output, after its own 10 Hz block, hard-clamped to ±5 V |
+| BOTTOM OUT 2 | The squared-up version of OUT 1, own 10 Hz block, hard-clamped to ±5 V |
+| SLOPE 2 END | Same END law as SLOPE END, from slope 2 |
+| SLOPE 2 OUT | The second slope sample, 0 V to +5 V |
+| SLOPE 2 AC | The 10 Hz block of (slope 2 circuit AC - 2.5) |
 
 Host ±1 is ±2.5 V, the PLEAT Serge level. An unpatched PLEAT IN 1 does not round-trip through that scale: the host sample goes straight into the same drive as the PLEAT plugin. PLEAT OUT in volts is 2.5 times the sample that also goes to the host.
 
@@ -58,6 +80,8 @@ Zero cables is a complete instrument. A cable in an input breaks that input's no
 | Cycle switch is the END to TRIG cord | The cord is on while the switch is on. Turning it on arms one trigger, including after reset while it is already on. It runs together with whatever voltage is on TRIG |
 | Slope IN and slope VC are 0 V unpatched | Host audio is not normalled to slope IN |
 | PLEAT OUT to the host | Always. A cable from PLEAT OUT to another jack does not mute the host |
+| Top IN, top VC, bottom IN, and bottom VC are 0 V unpatched | No normal between VCM sections. Host audio is not normalled to them |
+| Slope 2 IN, TRIG, and VC are 0 V unpatched | The MIDI gate stays on slope 1. Slope 2 OUT is not normalled to PLEAT VC |
 
 ## Routing
 
@@ -91,7 +115,7 @@ Reset clears the MIDI queue and releases every held note. A transport stop that 
 
 ## State
 
-The chunk is the parameter block, then nine routing bytes: magic 0x52, version 1, input count 6, then one source byte per input in the input order above. 255 means unpatched. A source of 0, 1, 2, or 3 is PLEAT OUT, END, slope OUT, or slope AC. A tail shorter than nine bytes, a bad magic, a bad version, a bad count, or a source outside those outputs leaves every input unpatched. A longer tail is accepted: those nine bytes are read, and anything after them stays in the chunk. If the UI is open, it reads the routing again after the chunk loads.
+The chunk is the parameter block, then the routing bytes. Magic is 0x52. The current blob is version 2, input count 13, then one source byte per input in the input order above (16 bytes). 255 means unpatched. A source byte is one of the outputs: 0 PLEAT OUT, 1 slope END, 2 slope OUT, 3 slope AC, 4 TOP OUT, 5 BOTTOM OUT 1, 6 BOTTOM OUT 2, 7 slope 2 END, 8 slope 2 OUT, 9 slope 2 AC. A project saved before these jacks is version 1, count 6, nine bytes, sources 0..3 only. That blob still loads, and the inputs added after slope VC stay unpatched. A tail shorter than nine bytes, a bad magic, a bad version, a bad count, or a source outside the outputs of that version leaves every input unpatched. A longer tail is accepted: a version 1 header consumes nine bytes, a version 2 header consumes 16, and anything after them stays in the chunk. If the UI is open, it reads the routing again after the chunk loads.
 
 ## Build
 
@@ -113,8 +137,20 @@ The host is told 16 samples of latency, the same figure as the PLEAT plugin. The
 
 Slope IN other than 0 V takes the input path and does not also inject the TRIG edge. Cycle can still arm, and the circuit ignores that edge while the input is away from 0 V.
 
+## Top and bottom
+
+This is a modelling choice. The notes name the top as a VCA or a soft square-up with a HI/LO switch, and the bottom as a level-compensated full-wave rectifier with a second squared output. They do not give a schematic, a time constant, or a drive figure.
+
+Top LO is linear: the smoothed gain times the AC-coupled input. Unity is gain 1. Top HI is `2.5 * tanh(3 * g * x / 2.5)`, an odd soft square. At ±2.5 V and gain 1 the tanh drive is 3, so the wave sits just inside ±2.5 V before the output block. The gain knob is the baseline. Top VC adds volts/5 with no attenuator knob. The factory VC attenuator mod is the middle and the bottom, not the top. +5 V at gain 0 is the same control as gain 1. The input and the output each have the PLEAT 10 Hz block. The output is then hard-clamped to ±5 V. A sample already inside the rail is unchanged. The COUPLE switch on the 2022 panel is drawn, lever at AC, and it is not a parameter: the original top input is the black AC jack, so the path stays AC coupled.
+
+Bottom LEVEL is the unnamed original pot, 0 at full CCW. The VC attenuator defaults to 1, which is the original unattenuated VC jack. `ctrl = clamp(level + depth * VC / 5, 0, 1)`. The input is AC coupled. The rectifier is `abs(ctrl * x)`. A linear peak follower (attack 1 ms, release 30 ms) tracks that. While the envelope is at or below 0.02 V the section is silent, so a cold start at gain 0 or input 0 is exact 0 and a tiny input is not boosted into noise. Above the floor, `norm = min(rect / env, 1)`, and OUT 1 is the 10 Hz block of `4 * tanh(ctrl * 2.5 * norm)`, clamped to ±5 V. OUT 2 uses the same wave through `tanh(8 * shaped)` and its own block, on the same 4 V scale. The compensation follows the input amplitude. The knob still sets how hard the tanh is driven. +sine and -sine take the same path.
+
+## Slope 2
+
+Slope 2 is the same circuit as slope 1: rise, fall, Cycle, VC attenuverter, RISE/BOTH/FALL, and the six jacks. It has its own state. It does not add a 1V/OCT jack, a separate rise CV, or a pulse output. Those are on a full GTS and they are not on slope 1, so copying slope 1 leaves them off here too. Cycle 2 is the END to TRIG cord inside slope 2. Nothing normals slope 2 OUT into PLEAT VC. That normal stays on slope 1.
+
 ## Gaps
 
-There is no 1V/OCT jack. The VCM top and bottom sections are not in this plugin. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay.
+There is no 1V/OCT jack. The top COUPLE switch is drawn and is not in the audio path: top IN stays on the 10 Hz block. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay. Host ±1 stays ±2.5 V, the locked PLEAT level. The new jacks use that same volt domain. They are not rescaled to a host sample of ±5 V.
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
