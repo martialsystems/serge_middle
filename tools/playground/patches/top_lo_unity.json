@@ -1,0 +1,14 @@
+{
+  "name": "top_lo_unity",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 40,
+  "note": "Top LO at gain 1 is a linear VCA. A ±2.5 V sine returns near that level after the 10 Hz blocks, with the mean near 0.",
+  "params": {"top_gain": 1.0, "top_hi": false},
+  "signals": {"top_in": {"type": "sine", "freq_hz": 440, "amp": 2.5}},
+  "golden_abs_tol": 1e-5,
+  "checks": [
+    {"id": "level", "type": "peak_abs", "jack": "top_out", "skip_ms": 15, "min": 2.2, "max": 2.6},
+    {"id": "no_dc", "type": "mean_abs", "jack": "top_out", "skip_ms": 15, "max": 0.02}
+  ]
+}

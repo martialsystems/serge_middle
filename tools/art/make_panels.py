@@ -601,8 +601,8 @@ def arc_scale(o, cx, cy, label, marks, minor):
 # (that mod is the middle and the bottom). Jacks are the audio in, the VC in,
 # and one out. The bottom is the level-compensated full-wave rectifier: one
 # knob, the factory VC attenuator, and two outs (the second squared up).
-# Coupling colours follow the Serge black/blue convention. The caps are drawn
-# here and are not editor controls yet.
+# Coupling colours follow the Serge black/blue convention. GAIN, MODE, LEVEL,
+# and the bottom VC attenuator are editor controls. COUPLE is plate art.
 
 
 def top_body(o):
@@ -612,11 +612,9 @@ def top_body(o):
     o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
     arc_scale(o, TOP_KNOB_X, TOP_KNOB_Y, "GAIN", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
     one_readout(o, TOP_KNOB_X)
-    o.append(f'<path fill="#eef1f6" d="{text_path("0", TOP_KNOB_X, (CAP_T + CAP_B) / 2 + 4, 14, REG, 0.3)}"/>')
     switch_well(o, 0.30 * W, TOP_SW_Y, "MODE", "LO", "HI")
     switch_well(o, 0.70 * W, TOP_SW_Y, "COUPLE", "AC", "DC")
-    append_knob(o, TOP_KNOB_X, TOP_KNOB_Y, 120, knob_angle(0.0), "tg")
-    append_lever(o, 0.30 * W, TOP_SW_Y, "left", "th")
+    # GAIN and MODE are editor controls. COUPLE stays on the plate: the audio path is AC.
     append_lever(o, 0.70 * W, TOP_SW_Y, "left", "tc")
     jacks(o, ["IN", "VC", "OUT"], ["black", "blue", "black"], TOP_JACK_X, "T")
 
@@ -628,7 +626,6 @@ def bottom_body(o):
     o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
     arc_scale(o, BOT_KNOB_X, BOT_KNOB_Y, "LEVEL", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
     one_readout(o, BOT_KNOB_X)
-    o.append(f'<path fill="#eef1f6" d="{text_path("0", BOT_KNOB_X, (CAP_T + CAP_B) / 2 + 4, 14, REG, 0.3)}"/>')
     # Factory-mod VC attenuator, above the VC jack. Noon is the drawn standby.
     cx, cy, r = JACK_X[1], 396.0, 22.0
     o.append(f'<path fill="{WHITE}" d="{text_path("VC", cx + 40, 388, 11, BOLD, 1.4, "start")}"/>')
@@ -643,8 +640,7 @@ def bottom_body(o):
         )
     o.append(f'<path fill="#aab2c0" d="{text_path("0", cx - 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
     o.append(f'<path fill="#aab2c0" d="{text_path("1", cx + 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
-    append_knob(o, BOT_KNOB_X, BOT_KNOB_Y, 120, knob_angle(0.0), "bg")
-    append_knob(o, cx, cy, 44, knob_angle(0.5), "ba")
+    # LEVEL and the VC attenuator are editor controls.
     jacks(o, ["IN", "VC", "OUT 1", "OUT 2"], ["black", "blue", "black", "black"], prefix="B")
 
 
@@ -652,12 +648,12 @@ def bottom_body(o):
 
 def middle_plate_svg():
     # Five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2.
-    # Top, bottom, and slope 2 caps are drawn on the plate and are not editor controls yet.
+    # COUPLE is the only control drawn as a cap. The editor draws the rest.
     panels = 5
     o = []
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{panels * W}" height="{H}" viewBox="0 0 {panels * W} {H}">')
     o.append('<!-- Serge Middle combined plate. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
-    o.append('<!-- Panels of 416: TOP x 0, PLEAT x 416, BOTTOM x 832, SLOPE 1 x 1248, SLOPE 2 x 1664. PLEAT and SLOPE 1 match PatchView.h (panel index 1 and 3). Top: GAIN knob (0.50 W, 0.36 H), MODE and COUPLE switches at y 0.62 H, x 0.30 W and 0.70 W, jacks y 0.785 H at x 0.22/0.50/0.78 W. Bottom: LEVEL knob (0.50 W, 0.36 H), VC ATTEN centre (JACK_X[1], 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope 2 repeats slope 1. Text is outlined (Liberation Sans). -->')
+    o.append('<!-- Panels of 416: TOP x 0, PLEAT x 416, BOTTOM x 832, SLOPE 1 x 1248, SLOPE 2 x 1664. Live controls match PatchView.h. Top: GAIN knob (0.50 W, 0.36 H), MODE and COUPLE switches at y 0.62 H, x 0.30 W and 0.70 W, jacks y 0.785 H at x 0.22/0.50/0.78 W. COUPLE is plate art. Bottom: LEVEL knob (0.50 W, 0.36 H), VC ATTEN centre (JACK_X[1], 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope 2 repeats slope 1 with no OUT normal. Text is outlined (Liberation Sans). -->')
     o.append('<g>')
     top_body(o)
     o.append('</g>')
@@ -671,7 +667,7 @@ def middle_plate_svg():
     slope_body(o, combined=True, mark="1", normal_out=True, caps=False)
     o.append('</g>')
     o.append(f'<g transform="translate({4 * W},0)">')
-    slope_body(o, combined=True, mark="2", normal_out=False, caps=True)
+    slope_body(o, combined=True, mark="2", normal_out=False, caps=False)
     o.append('</g>')
     # Slope 1 OUT to PLEAT VC. Slope 2 has no normal.
     x0, x1, y = 3 * W + SLOPE6_X[4], W + JACK_X[2], 562

@@ -5,9 +5,8 @@
 //
 // The plate art carries the lettering. This file draws the live knobs, the
 // Cycle switch is attached by the plugin, and this control draws cables and
-// hover labels. Five panels: top, PLEAT, bottom, slope 1, slope 2. Live jacks
-// are PLEAT (panel 1) and slope 1 (panel 3). Top, bottom, and slope 2 are
-// drawn on the plate and are not hit targets yet.
+// hover labels. Five panels: top, PLEAT, bottom, slope 1, slope 2.
+// Jack fractions match middle_plate.svg. The COUPLE lever is plate art only.
 
 #include "SergeMiddleCombined.h"
 
@@ -37,10 +36,13 @@ struct JackRef
 
 // middle_plate.png is five panels of equal width, left to right.
 inline constexpr int kPanelCount = 5;
+inline constexpr int kTopPanel = 0;
 inline constexpr int kPleatPanel = 1;
+inline constexpr int kBottomPanel = 2;
 inline constexpr int kSlopePanel = 3;
+inline constexpr int kSlope2Panel = 4;
 
-inline constexpr int kJackCount = 10;
+inline constexpr int kJackCount = 23;
 inline constexpr JackRef kJacks[kJackCount] = {
     {false, patch::PleatIn1, 0.18f, kPleatPanel, "PLEAT IN 1"},
     {false, patch::PleatIn2, 0.39f, kPleatPanel, "PLEAT IN 2"},
@@ -52,6 +54,19 @@ inline constexpr JackRef kJacks[kJackCount] = {
     {true, patch::SlopeEnd, 0.58f, kSlopePanel, "SLOPE END"},
     {true, patch::SlopeOut, 0.73f, kSlopePanel, "SLOPE OUT"},
     {true, patch::SlopeAc, 0.88f, kSlopePanel, "SLOPE AC"},
+    {false, patch::TopIn, 0.22f, kTopPanel, "TOP IN"},
+    {false, patch::TopVc, 0.50f, kTopPanel, "TOP VC"},
+    {true, patch::TopOut, 0.78f, kTopPanel, "TOP OUT"},
+    {false, patch::BottomIn, 0.18f, kBottomPanel, "BOTTOM IN"},
+    {false, patch::BottomVc, 0.39f, kBottomPanel, "BOTTOM VC"},
+    {true, patch::BottomOut1, 0.61f, kBottomPanel, "BOTTOM OUT 1"},
+    {true, patch::BottomOut2, 0.82f, kBottomPanel, "BOTTOM OUT 2"},
+    {false, patch::Slope2In, 0.12f, kSlope2Panel, "SLOPE 2 IN"},
+    {false, patch::Slope2Trig, 0.27f, kSlope2Panel, "SLOPE 2 TRIG"},
+    {false, patch::Slope2Vc, 0.42f, kSlope2Panel, "SLOPE 2 VC"},
+    {true, patch::Slope2End, 0.58f, kSlope2Panel, "SLOPE 2 END"},
+    {true, patch::Slope2Out, 0.73f, kSlope2Panel, "SLOPE 2 OUT"},
+    {true, patch::Slope2Ac, 0.88f, kSlope2Panel, "SLOPE 2 AC"},
 };
 
 // VC Depth sits on the PLEAT panel. 253.76 is 0.61 of a 416-wide panel.

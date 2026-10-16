@@ -375,6 +375,9 @@ struct Segment
   bool hasRoute = false;
   std::string route = "both";
   int cycle = -1; // -1 inherit, 0 off, 1 on
+  bool hasRoute2 = false;
+  std::string route2 = "both";
+  int cycle2 = -1;
   std::map<std::string, Knob> knobs;
 };
 
@@ -387,6 +390,8 @@ struct PatchFile
   std::map<std::string, Knob> knobs;
   std::string route = "both";
   bool cycle = false;
+  std::string route2 = "both";
+  bool cycle2 = false;
   std::map<std::string, Signal> signals;
   std::vector<MidiNote> notes;
   std::vector<std::pair<std::string, std::string>> cables;
@@ -496,23 +501,42 @@ Signal parseSignal(const Value& v)
   return signal;
 }
 
-void parseKnobs(const Value& params, std::map<std::string, Knob>& knobs, std::string& route, int& cycleFlag)
+void parseKnobs(const Value& params, std::map<std::string, Knob>& knobs, std::string& route, int& cycleFlag,
+                std::string& route2, int& cycle2Flag)
 {
-  static const char* kNames[] = {"rise_s", "fall_s", "vc_depth", "pleat_vc_depth", "fold", "in2"};
+  static const char* kNames[] = {"rise_s", "fall_s", "vc_depth", "pleat_vc_depth", "fold", "in2",
+                                 "top_gain", "bottom_gain", "bottom_vc", "rise2_s", "fall2_s", "vc_depth2"};
   for (const auto& kv : params.o)
   {
-    if (kv.first == "route")
+    if (kv.first == "route" || kv.first == "route2")
     {
       if (kv.second.kind != Value::Str)
         die("route must be rise, both, or fall");
-      route = kv.second.s;
+      if (kv.first == "route")
+        route = kv.second.s;
+      else
+        route2 = kv.second.s;
       continue;
     }
-    if (kv.first == "cycle")
+    if (kv.first == "cycle" || kv.first == "cycle2")
     {
       if (kv.second.kind != Value::Bool)
         die("cycle must be a bool");
-      cycleFlag = kv.second.b ? 1 : 0;
+      const int flag = kv.second.b ? 1 : 0;
+      if (kv.first == "cycle")
+        cycleFlag = flag;
+      else
+        cycle2Flag = flag;
+      continue;
+    }
+    if (kv.first == "top_hi")
+    {
+      Knob knob;
+      if (kv.second.kind == Value::Bool)
+        knob.value = kv.second.b ? 1.0 : 0.0;
+      else
+        knob = parseKnob(kv.second, 0.0);
+      knobs[kv.first] = knob;
       continue;
     }
     bool known = false;
@@ -520,7 +544,13 @@ void parseKnobs(const Value& params, std::map<std::string, Knob>& knobs, std::st
       known = known || kv.first == name;
     if (!known)
       die("unknown param " + kv.first);
-    const double fallback = (kv.first == "fold") ? 1.0 : (kv.first == "rise_s" || kv.first == "fall_s") ? 0.005 : 0.0;
+    double fallback = 0.0;
+    if (kv.first == "fold")
+      fallback = 1.0;
+    else if (kv.first == "rise_s" || kv.first == "fall_s" || kv.first == "rise2_s" || kv.first == "fall2_s")
+      fallback = 0.005;
+    else if (kv.first == "bottom_vc")
+      fallback = 1.0;
     knobs[kv.first] = parseKnob(kv.second, fallback);
   }
 }
@@ -561,8 +591,10 @@ PatchFile parsePatch(const Value& root)
   if (const Value* params = root.get("params"))
   {
     int cycleFlag = patch.cycle ? 1 : 0;
-    parseKnobs(*params, patch.knobs, patch.route, cycleFlag);
+    int cycle2Flag = patch.cycle2 ? 1 : 0;
+    parseKnobs(*params, patch.knobs, patch.route, cycleFlag, patch.route2, cycle2Flag);
     patch.cycle = cycleFlag == 1;
+    patch.cycle2 = cycle2Flag == 1;
   }
   if (const Value* signals = root.get("signals"))
   {
@@ -574,7 +606,9 @@ PatchFile parsePatch(const Value& root)
         for (const Value& event : events.a)
           patch.notes.push_back(parseNote(event));
       }
-      else if (kv.first == "host" || kv.first == "in" || kv.first == "trig" || kv.first == "vc")
+      else if (kv.first == "host" || kv.first == "in" || kv.first == "trig" || kv.first == "vc" ||
+               kv.first == "top_in" || kv.first == "top_vc" || kv.first == "bottom_in" || kv.first == "bottom_vc" ||
+               kv.first == "slope2_in" || kv.first == "slope2_trig" || kv.first == "slope2_vc")
         patch.signals[kv.first] = parseSignal(kv.second);
       else
         die("unknown signal jack " + kv.first);
@@ -598,14 +632,22 @@ PatchFile parsePatch(const Value& root)
       if (const Value* params = seg.get("params"))
       {
         int cycleFlag = -1;
+        int cycle2Flag = -1;
         std::string route;
-        parseKnobs(*params, segment.knobs, route, cycleFlag);
+        std::string route2;
+        parseKnobs(*params, segment.knobs, route, cycleFlag, route2, cycle2Flag);
         if (params->has("route"))
         {
           segment.hasRoute = true;
           segment.route = route;
         }
+        if (params->has("route2"))
+        {
+          segment.hasRoute2 = true;
+          segment.route2 = route2;
+        }
         segment.cycle = cycleFlag;
+        segment.cycle2 = cycle2Flag;
       }
       patch.segments.push_back(segment);
     }
@@ -657,11 +699,25 @@ bool cycleAt(const PatchFile& patch, const Segment* segment)
   return patch.cycle;
 }
 
+bool cycle2At(const PatchFile& patch, const Segment* segment)
+{
+  if (segment != nullptr && segment->cycle2 >= 0)
+    return segment->cycle2 == 1;
+  return patch.cycle2;
+}
+
 std::string routeAt(const PatchFile& patch, const Segment* segment)
 {
   if (segment != nullptr && segment->hasRoute)
     return segment->route;
   return patch.route;
+}
+
+std::string route2At(const PatchFile& patch, const Segment* segment)
+{
+  if (segment != nullptr && segment->hasRoute2)
+    return segment->route2;
+  return patch.route2;
 }
 
 double signalAt(const PatchFile& patch, const char* jack, int n, double fs)
@@ -682,6 +738,18 @@ int outputIndex(const std::string& name)
     return patch::SlopeOut;
   if (name == "slope_ac")
     return patch::SlopeAc;
+  if (name == "top_out")
+    return patch::TopOut;
+  if (name == "bottom_out1")
+    return patch::BottomOut1;
+  if (name == "bottom_out2")
+    return patch::BottomOut2;
+  if (name == "slope2_end")
+    return patch::Slope2End;
+  if (name == "slope2_out")
+    return patch::Slope2Out;
+  if (name == "slope2_ac")
+    return patch::Slope2Ac;
   die("unknown output jack " + name);
 }
 
@@ -699,6 +767,20 @@ int inputIndex(const std::string& name)
     return patch::SlopeTrig;
   if (name == "slope_vc")
     return patch::SlopeVc;
+  if (name == "top_in")
+    return patch::TopIn;
+  if (name == "top_vc")
+    return patch::TopVc;
+  if (name == "bottom_in")
+    return patch::BottomIn;
+  if (name == "bottom_vc")
+    return patch::BottomVc;
+  if (name == "slope2_in")
+    return patch::Slope2In;
+  if (name == "slope2_trig")
+    return patch::Slope2Trig;
+  if (name == "slope2_vc")
+    return patch::Slope2Vc;
   die("unknown input jack " + name);
 }
 
@@ -802,23 +884,38 @@ void renderPatch(const PatchFile& patch, double fs, int nSamples, std::FILE* out
     routing.Connect(outputIndex(cable.first), inputIndex(cable.second));
   const double fold0 = knobAt(patch, nullptr, "fold", 1.0, 0.0);
   const double in20 = knobAt(patch, nullptr, "in2", 0.0, 0.0);
+  vcm::GainSmoother topGain;
+  vcm::GainSmoother bottomGain;
+  vcm::GainSmoother bottomVc;
   channel.Reset(fs);
   fold.Reset(fold0, fs);
   symmetry.Reset(in20, fs);
+  topGain.Reset(knobAt(patch, nullptr, "top_gain", 0.0, 0.0), fs);
+  bottomGain.Reset(knobAt(patch, nullptr, "bottom_gain", 0.0, 0.0), fs);
+  bottomVc.Reset(knobAt(patch, nullptr, "bottom_vc", 1.0, 0.0), fs);
   bool armNext = true;
+  bool armNext2 = true;
   writeHeader(out, {"pleat_in1", "pleat_in2", "pleat_vc", "slope_in", "slope_trig", "slope_vc",
-                    "pleat_out", "slope_end", "slope_out", "slope_ac"});
+                    "pleat_out", "slope_end", "slope_out", "slope_ac",
+                    "top_in", "top_vc", "bottom_in", "bottom_vc", "slope2_in", "slope2_trig", "slope2_vc",
+                    "top_out", "bottom_out1", "bottom_out2", "slope2_end", "slope2_out", "slope2_ac"});
   for (int n = 0; n < nSamples; ++n)
   {
     const double tMs = 1000.0 * static_cast<double>(n) / fs;
     const Segment* segment = segmentAt(patch, tMs);
     const double foldTarget = knobAt(patch, segment, "fold", 1.0, tMs);
     const double in2Target = knobAt(patch, segment, "in2", 0.0, tMs);
+    const double topTarget = knobAt(patch, segment, "top_gain", 0.0, tMs);
+    const double bottomTarget = knobAt(patch, segment, "bottom_gain", 0.0, tMs);
+    const double bottomVcTarget = knobAt(patch, segment, "bottom_vc", 1.0, tMs);
     if (segment != nullptr && segment->reset && n == msToSample(segment->t0, fs))
     {
       channel.Reset(fs);
       fold.Reset(foldTarget, fs);
       symmetry.Reset(in2Target, fs);
+      topGain.Reset(topTarget, fs);
+      bottomGain.Reset(bottomTarget, fs);
+      bottomVc.Reset(bottomVcTarget, fs);
       notes.AllOff();
       for (const MidiNote& note : patch.notes)
       {
@@ -826,6 +923,7 @@ void renderPatch(const PatchFile& patch, double fs, int nSamples, std::FILE* out
           notes.NoteOn(note.note);
       }
       armNext = true;
+      armNext2 = true;
     }
     for (const MidiNote& note : patch.notes)
     {
@@ -844,15 +942,46 @@ void renderPatch(const PatchFile& patch, double fs, int nSamples, std::FILE* out
     const bool arm = cycle && armNext;
     if (arm)
       armNext = false;
+    const bool cycle2 = cycle2At(patch, segment);
+    const bool arm2 = cycle2 && armNext2;
+    if (arm2)
+      armNext2 = false;
+    patch::Inject inject;
+    inject.topIn = signalAt(patch, "top_in", n, fs);
+    inject.topVc = signalAt(patch, "top_vc", n, fs);
+    inject.bottomIn = signalAt(patch, "bottom_in", n, fs);
+    inject.bottomVc = signalAt(patch, "bottom_vc", n, fs);
+    inject.slope2In = signalAt(patch, "slope2_in", n, fs);
+    inject.slope2Trig = signalAt(patch, "slope2_trig", n, fs);
+    inject.slope2Vc = signalAt(patch, "slope2_vc", n, fs);
+    patch::SectionControls extra;
+    extra.topGain = topGain.Step(topTarget);
+    extra.topHi = knobAt(patch, segment, "top_hi", 0.0, tMs) >= 0.5;
+    extra.bottomGain = bottomGain.Step(bottomTarget);
+    extra.bottomDepth = bottomVc.Step(bottomVcTarget);
+    extra.rise2 = knobAt(patch, segment, "rise2_s", 0.005, tMs);
+    extra.fall2 = knobAt(patch, segment, "fall2_s", 0.005, tMs);
+    extra.cycle2 = cycle2;
+    extra.arm2 = arm2;
+    extra.slope2Depth = knobAt(patch, segment, "vc_depth2", 0.0, tMs);
+    extra.slope2Route = routeInt(route2At(patch, segment));
+    extra.inject = &inject;
     const double host = signalAt(patch, "host", n, fs);
     channel.Step(host, notes.Volts(), g, s, depth, rise, fall, cycle, arm, routing, slopeDepth,
-                 routeInt(routeAt(patch, segment)));
+                 routeInt(routeAt(patch, segment)), extra);
     writeRow(out, n, tMs,
              {channel.InputVolts(patch::PleatIn1), channel.InputVolts(patch::PleatIn2),
               channel.InputVolts(patch::PleatVc), channel.InputVolts(patch::SlopeIn),
               channel.InputVolts(patch::SlopeTrig), channel.InputVolts(patch::SlopeVc),
               channel.OutputVolts(patch::PleatOut), channel.OutputVolts(patch::SlopeEnd),
-              channel.OutputVolts(patch::SlopeOut), channel.OutputVolts(patch::SlopeAc)});
+              channel.OutputVolts(patch::SlopeOut), channel.OutputVolts(patch::SlopeAc),
+              channel.InputVolts(patch::TopIn), channel.InputVolts(patch::TopVc),
+              channel.InputVolts(patch::BottomIn), channel.InputVolts(patch::BottomVc),
+              channel.InputVolts(patch::Slope2In), channel.InputVolts(patch::Slope2Trig),
+              channel.InputVolts(patch::Slope2Vc), channel.OutputVolts(patch::TopOut),
+              channel.OutputVolts(patch::BottomOut1), channel.OutputVolts(patch::BottomOut2),
+              channel.OutputVolts(patch::Slope2End), channel.OutputVolts(patch::Slope2Out),
+              channel.OutputVolts(patch::Slope2Ac)});
   }
 }
 

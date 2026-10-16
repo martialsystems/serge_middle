@@ -109,7 +109,7 @@ codesign --force --sign - build/slope-ac-fl/out/SlopeAC.vst3
 
 ## Serge Middle combined
 
-`SergeMiddleCombined/` is the five-panel VST3. The window is 2080 by 624. Left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Patch jacks route inside the plugin. Format: VST3, via Unix Makefiles. `SergeMiddle/` and `SlopeAC/` stay separate plugins. Top, bottom, and slope 2 are on the plate and are not wired yet.
+`SergeMiddleCombined/` is the five-panel VST3. The window is 2080 by 624. Left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Patch jacks route inside the plugin. Format: VST3, via Unix Makefiles. `SergeMiddle/` and `SlopeAC/` stay separate plugins.
 
 Non-deploying build, from the repository root. `IPLUG_DEPLOY_PLUGINS=OFF` keeps that build out of the user VST3 folder:
 

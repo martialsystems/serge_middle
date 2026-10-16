@@ -10,6 +10,7 @@
 
 #include "../../SergeMiddle/dsp/WaveMiddle.h"
 #include "../../SlopeAC/dsp/AcCoupler.h"
+#include "WaveEnds.h"
 
 #include <cmath>
 #include <cstddef>
@@ -27,7 +28,14 @@ enum Input : int8_t
   SlopeIn = 3,
   SlopeTrig = 4,
   SlopeVc = 5,
-  kNumInputs = 6
+  TopIn = 6,
+  TopVc = 7,
+  BottomIn = 8,
+  BottomVc = 9,
+  Slope2In = 10,
+  Slope2Trig = 11,
+  Slope2Vc = 12,
+  kNumInputs = 13
 };
 
 enum Output : int8_t
@@ -36,12 +44,24 @@ enum Output : int8_t
   SlopeEnd = 1,
   SlopeOut = 2,
   SlopeAc = 3,
-  kNumOutputs = 4
+  TopOut = 4,
+  BottomOut1 = 5,
+  BottomOut2 = 6,
+  Slope2End = 7,
+  Slope2Out = 8,
+  Slope2Ac = 9,
+  kNumOutputs = 10
 };
 
 inline constexpr int kMeterCount = kNumInputs + kNumOutputs;
 inline constexpr uint8_t kRoutingMagic = 0x52;
-inline constexpr uint8_t kRoutingVersion = 1;
+// Version 2 is the current blob: every input, sources across every output.
+// Version 1 is the six-input blob from before the top, bottom, and second slope.
+inline constexpr uint8_t kRoutingVersion = 2;
+inline constexpr uint8_t kLegacyRoutingVersion = 1;
+inline constexpr int kLegacyInputCount = 6;
+inline constexpr int kLegacyOutputCount = 4;
+inline constexpr int kLegacyRoutingBytes = 3 + kLegacyInputCount;
 inline constexpr int kRoutingBytes = 3 + kNumInputs;
 inline constexpr double kIn2CableLimit = 10.0;
 // Combined PLEAT OUT jack. The cells are not clipped. This rail is applied
@@ -143,26 +163,34 @@ inline void SerializeRouting(const Routing& routing, std::vector<uint8_t>& out)
 }
 
 // On failure `routing` is all unpatched.
+// A version 1 blob is nine bytes, count 6, and sources 0..3. The inputs added
+// after slope VC stay unpatched. A version 2 blob is the current size.
 inline bool ParseRouting(const uint8_t* bytes, size_t size, Routing& routing)
 {
   Routing cleared;
-  if (bytes == nullptr || size != static_cast<size_t>(kRoutingBytes))
+  if (bytes == nullptr || size < 3 || bytes[0] != kRoutingMagic)
   {
     routing = cleared;
     return false;
   }
-  if (bytes[0] != kRoutingMagic || bytes[1] != kRoutingVersion || bytes[2] != kNumInputs)
+  const bool legacy = bytes[1] == kLegacyRoutingVersion && bytes[2] == kLegacyInputCount &&
+                      size == static_cast<size_t>(kLegacyRoutingBytes);
+  const bool current = bytes[1] == kRoutingVersion && bytes[2] == static_cast<uint8_t>(kNumInputs) &&
+                       size == static_cast<size_t>(kRoutingBytes);
+  if (!legacy && !current)
   {
     routing = cleared;
     return false;
   }
+  const int count = legacy ? kLegacyInputCount : kNumInputs;
+  const int outLimit = legacy ? kLegacyOutputCount : kNumOutputs;
   Routing parsed;
-  for (int i = 0; i < kNumInputs; ++i)
+  for (int i = 0; i < count; ++i)
   {
     const uint8_t byte = bytes[3 + i];
     if (byte == 0xFF)
       parsed.source[i] = -1;
-    else if (byte >= kNumOutputs)
+    else if (byte >= outLimit)
     {
       routing = cleared;
       return false;
@@ -173,6 +201,36 @@ inline bool ParseRouting(const uint8_t* bytes, size_t size, Routing& routing)
   routing = parsed;
   return true;
 }
+
+// Voltages for inputs that have no normal. Used only while that input is unpatched.
+// A null inject reads as 0 V. Host audio is not in here.
+struct Inject
+{
+  double topIn = 0.0;
+  double topVc = 0.0;
+  double bottomIn = 0.0;
+  double bottomVc = 0.0;
+  double slope2In = 0.0;
+  double slope2Trig = 0.0;
+  double slope2Vc = 0.0;
+};
+
+// Knobs for the sections appended after slope 1. Defaults leave them idle:
+// top and bottom silent, slope 2 at 5 ms with Cycle off and no VC.
+struct SectionControls
+{
+  double topGain = 0.0;
+  bool topHi = false;
+  double bottomGain = 0.0;
+  double bottomDepth = 1.0;
+  double rise2 = 0.005;
+  double fall2 = 0.005;
+  bool cycle2 = false;
+  bool arm2 = false;
+  double slope2Depth = 0.0;
+  int slope2Route = 1;
+  const Inject* inject = nullptr;
+};
 
 // Patched IN 2 is a jack voltage, clamped to ±10 V. A non-finite value is 0.
 inline double ClampPatchedIn2(double volts)
@@ -297,14 +355,22 @@ public:
     mSlope.Reset();
     mCoupler.SetSampleRate(sampleRate);
     mCoupler.Reset();
+    mSlope2.SetSampleRate(sampleRate);
+    mSlope2.Reset();
+    mCoupler2.SetSampleRate(sampleRate);
+    mCoupler2.Reset();
+    mTop.Reset(sampleRate);
+    mBottom.Reset(sampleRate);
     for (double& volts : mPrev)
       volts = 0.0;
     mPrev[SlopeEnd] = kGateVolts;
+    mPrev[Slope2End] = kGateVolts;
     for (double& volts : mIn)
       volts = 0.0;
     for (double& volts : mOut)
       volts = 0.0;
     mOut[SlopeEnd] = kGateVolts;
+    mOut[Slope2End] = kGateVolts;
     mAppliedG = serge::kGDefault;
     mHost = 0.0;
   }
@@ -314,7 +380,7 @@ public:
   // what a saved project gets. `slopeRoute` is 0 rise, 1 both, 2 fall.
   double Step(double hostIn, double midiGateVolts, double gS, double sS, double depth, double rise,
               double fall, bool cycle, bool arm, const Routing& routing, double slopeVcDepth = 0.0,
-              int slopeRoute = 1)
+              int slopeRoute = 1, SectionControls extra = {})
   {
     if (!std::isfinite(hostIn))
       hostIn = 0.0;
@@ -331,26 +397,23 @@ public:
     mIn[SlopeIn] = Patched(routing, SlopeIn) ? Read(routing, SlopeIn) : 0.0;
     mIn[SlopeTrig] = Patched(routing, SlopeTrig) ? Read(routing, SlopeTrig) : midiGateVolts;
     mIn[SlopeVc] = Patched(routing, SlopeVc) ? Read(routing, SlopeVc) : 0.0;
+    mIn[TopIn] = Patched(routing, TopIn) ? Read(routing, TopIn) : Loose(extra.inject, &Inject::topIn);
+    mIn[TopVc] = Patched(routing, TopVc) ? Read(routing, TopVc) : Loose(extra.inject, &Inject::topVc);
+    mIn[BottomIn] = Patched(routing, BottomIn) ? Read(routing, BottomIn) : Loose(extra.inject, &Inject::bottomIn);
+    mIn[BottomVc] = Patched(routing, BottomVc) ? Read(routing, BottomVc) : Loose(extra.inject, &Inject::bottomVc);
+    mIn[Slope2In] = Patched(routing, Slope2In) ? Read(routing, Slope2In) : Loose(extra.inject, &Inject::slope2In);
+    mIn[Slope2Trig] = Patched(routing, Slope2Trig) ? Read(routing, Slope2Trig) : Loose(extra.inject, &Inject::slope2Trig);
+    mIn[Slope2Vc] = Patched(routing, Slope2Vc) ? Read(routing, Slope2Vc) : Loose(extra.inject, &Inject::slope2Vc);
     for (double& volts : mIn)
     {
       if (!std::isfinite(volts))
         volts = 0.0;
     }
 
-    double inp = mIn[SlopeIn];
     // The circuit sees the TRIG level, not a one-sample edge. A level that has
     // stayed high since the starting edge holds at +5 V. The Cycle arm is one high sample.
-    double circuitTrig = mIn[SlopeTrig];
-    if (cycle && arm && !(circuitTrig > slope::kTrigThreshold))
-      circuitTrig = kGateVolts;
-
-    const double safeRise = SafeTime(rise);
-    const double safeFall = SafeTime(fall);
-    mSlope.SetSwitch(slope::SwitchFromInt(slopeRoute));
-    mSlope.SetTimes(safeRise, safeFall);
-    const double scaledVc = slope::ScaleVc(mIn[SlopeVc], slopeVcDepth);
-    const slope::Sample sample = mSlope.Step(inp, circuitTrig, scaledVc, 0.0, 0.0, cycle);
-    const double coupled = mCoupler.Step(sample.ac - slope::kAcCenter);
+    const SlopeRun slope1 = RunSlope(mSlope, mCoupler, mIn[SlopeIn], mIn[SlopeTrig], mIn[SlopeVc], rise, fall,
+                                     cycle, arm, slopeVcDepth, slopeRoute);
 
     mAppliedG = FoldWithVc(gS, depth, mIn[PleatVc]);
     const double a = in1Patched ? mIn[PleatIn1] / serge::kAudioFullScaleVolts : hostIn;
@@ -363,9 +426,22 @@ public:
       mHost = pleatOut / serge::kAudioFullScaleVolts;
     }
     mOut[PleatOut] = pleatOut;
-    mOut[SlopeEnd] = EndJackVolts(sample.end, sample.out);
-    mOut[SlopeOut] = sample.out;
-    mOut[SlopeAc] = coupled;
+    mOut[SlopeEnd] = slope1.end;
+    mOut[SlopeOut] = slope1.out;
+    mOut[SlopeAc] = slope1.ac;
+
+    // Top, bottom, and slope 2 read the previous sample, same as every other cable.
+    // They do not write the PLEAT or slope 1 outputs.
+    const double topG = vcm::ControlSum(extra.topGain, 1.0, mIn[TopVc]);
+    mOut[TopOut] = mTop.Step(mIn[TopIn], topG, extra.topHi);
+    const double bottomCtrl = vcm::ControlSum(extra.bottomGain, extra.bottomDepth, mIn[BottomVc]);
+    mBottom.Step(mIn[BottomIn], bottomCtrl, mOut[BottomOut1], mOut[BottomOut2]);
+    const SlopeRun slope2 = RunSlope(mSlope2, mCoupler2, mIn[Slope2In], mIn[Slope2Trig], mIn[Slope2Vc], extra.rise2,
+                                     extra.fall2, extra.cycle2, extra.arm2, extra.slope2Depth, extra.slope2Route);
+    mOut[Slope2End] = slope2.end;
+    mOut[Slope2Out] = slope2.out;
+    mOut[Slope2Ac] = slope2.ac;
+
     for (int i = 0; i < kNumOutputs; ++i)
       mPrev[i] = mOut[i];
     return mHost;
@@ -472,6 +548,29 @@ private:
     double mBias = 0.0;
   };
 
+  struct SlopeRun
+  {
+    double end = 0.0;
+    double out = 0.0;
+    double ac = 0.0;
+  };
+
+  static SlopeRun RunSlope(slope::SecondHalf& half, slope::AcCoupler& coupler, double inp, double trig, double vc,
+                           double rise, double fall, bool cycle, bool arm, double depth, int route)
+  {
+    double circuitTrig = trig;
+    if (cycle && arm && !(circuitTrig > slope::kTrigThreshold))
+      circuitTrig = kGateVolts;
+    half.SetSwitch(slope::SwitchFromInt(route));
+    half.SetTimes(SafeTime(rise), SafeTime(fall));
+    const slope::Sample sample = half.Step(inp, circuitTrig, slope::ScaleVc(vc, depth), 0.0, 0.0, cycle);
+    SlopeRun run;
+    run.end = EndJackVolts(sample.end, sample.out);
+    run.out = sample.out;
+    run.ac = coupler.Step(sample.ac - slope::kAcCenter);
+    return run;
+  }
+
   static bool Patched(const Routing& routing, int input)
   {
     const int src = routing.source[input];
@@ -481,6 +580,14 @@ private:
   double Read(const Routing& routing, int input) const
   {
     return mPrev[routing.source[input]];
+  }
+
+  static double Loose(const Inject* inject, double Inject::* member)
+  {
+    if (inject == nullptr)
+      return 0.0;
+    const double volts = inject->*member;
+    return std::isfinite(volts) ? volts : 0.0;
   }
 
   static double SafeTime(double seconds)
@@ -493,9 +600,13 @@ private:
   PleatVoice mPleat;
   slope::SecondHalf mSlope;
   slope::AcCoupler mCoupler;
-  double mPrev[kNumOutputs] = {0.0, kGateVolts, 0.0, 0.0};
+  slope::SecondHalf mSlope2;
+  slope::AcCoupler mCoupler2;
+  vcm::TopSection mTop;
+  vcm::BottomSection mBottom;
+  double mPrev[kNumOutputs] = {};
   double mIn[kNumInputs] = {};
-  double mOut[kNumOutputs] = {0.0, kGateVolts, 0.0, 0.0};
+  double mOut[kNumOutputs] = {};
   double mAppliedG = serge::kGDefault;
   double mHost = 0.0;
 };

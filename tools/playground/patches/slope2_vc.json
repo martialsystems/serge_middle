@@ -1,0 +1,25 @@
+{
+  "name": "slope2_vc",
+  "engine": "patch",
+  "sample_rate": 48000,
+  "duration_ms": 125,
+  "note": "Slope 2 VC jack, attenuverter, and RISE/BOTH/FALL switch. The periods are the same law as the standalone slope.",
+  "params": {"rise2_s": 0.005, "fall2_s": 0.005, "cycle2": true, "route2": "both"},
+  "signals": {"slope2_vc": {"type": "dc", "volts": 1.0}},
+  "segments": [
+    {"t0_ms": 0, "t1_ms": 25, "reset": true, "params": {"vc_depth2": 0.0, "route2": "both", "cycle2": true}},
+    {"t0_ms": 25, "t1_ms": 50, "reset": true, "params": {"vc_depth2": 1.0, "route2": "both", "cycle2": true}},
+    {"t0_ms": 50, "t1_ms": 75, "reset": true, "params": {"vc_depth2": -1.0, "route2": "both", "cycle2": true}},
+    {"t0_ms": 75, "t1_ms": 100, "reset": true, "params": {"vc_depth2": 1.0, "route2": "rise", "cycle2": true}},
+    {"t0_ms": 100, "t1_ms": 125, "reset": true, "params": {"vc_depth2": 1.0, "route2": "fall", "cycle2": true}}
+  ],
+  "golden_abs_tol": 1e-6,
+  "checks": [
+    {"id": "depth0", "type": "period", "jack": "slope2_out", "t0_ms": 0, "t1_ms": 25, "samples": 480},
+    {"id": "depth_plus", "type": "period", "jack": "slope2_out", "t0_ms": 25, "t1_ms": 50, "samples": 384},
+    {"id": "depth_minus", "type": "period", "jack": "slope2_out", "t0_ms": 50, "t1_ms": 75, "samples": 576},
+    {"id": "rise_route", "type": "period", "jack": "slope2_out", "t0_ms": 75, "t1_ms": 100, "samples": 432},
+    {"id": "fall_route", "type": "period", "jack": "slope2_out", "t0_ms": 100, "t1_ms": 125, "samples": 432},
+    {"id": "trig_jack", "type": "hold", "jack": "slope2_trig", "t0_ms": 0, "t1_ms": 25, "volts": 0.0, "tol": 0.0}
+  ]
+}
