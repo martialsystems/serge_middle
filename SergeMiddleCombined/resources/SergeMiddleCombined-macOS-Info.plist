@@ -7,13 +7,15 @@
 	<key>CFBundleExecutable</key>
 	<string>SergeMiddleCombined</string>
 	<key>CFBundleGetInfoString</key>
-	<string>SergeMiddleCombined v1.0.0 Copyright 2026 Martial Systems LLC</string>
+	<string>SLEWFOLD v1.0.0 Copyright 2026 Martial Systems LLC</string>
 	<key>CFBundleIconFile</key>
 	<string>SergeMiddleCombined.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.MartialSystems.app.SergeMiddleCombined</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>SLEWFOLD</string>
 	<key>CFBundleName</key>
 	<string>SergeMiddleCombined</string>
 	<key>CFBundlePackageType</key>
@@ -31,7 +33,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>10.13.0</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs audio input access so you can process sound through Serge Middle.</string>
+	<string>This app needs audio input access so you can process sound through SLEWFOLD.</string>
 	<key>NSPrincipalClass</key>
 	<string>SWELLApplication</string>
 </dict>

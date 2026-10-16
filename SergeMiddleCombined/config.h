@@ -1,4 +1,4 @@
-#define PLUG_NAME "Serge Middle"
+#define PLUG_NAME "SLEWFOLD"
 #define PLUG_MFR "MartialSystems"
 #define PLUG_VERSION_HEX 0x00010000
 #define PLUG_VERSION_STR "1.0.0"
@@ -26,12 +26,20 @@
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 1
 #define PLUG_HAS_UI 1
-// 2080 by 624 is middle_plate.png (five 416-wide panels). @2x is 4160 by 1248.
-#define PLUG_WIDTH 2080
-#define PLUG_HEIGHT 624
+// 1600 by 960 is slewfold_plate.png, the hand-drawn face. @2x is 3200 by 1920.
+// The window default is 1440 by 864 so a 1920 by 1080 screen still has room
+// for the menu bar and the Dock. The minimum is 1200 by 720, which fits a
+// 1280 by 800 screen. The maximum is 2400 by 1440. Scale mode keeps the
+// aspect. Spots stay in the 1600 by 960 design space.
+#define PLUG_WIDTH 1440
+#define PLUG_HEIGHT 864
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
-#define PLUG_HOST_RESIZE 0
+#define PLUG_HOST_RESIZE 1
+#define PLUG_MIN_WIDTH 1200
+#define PLUG_MIN_HEIGHT 720
+#define PLUG_MAX_WIDTH 2400
+#define PLUG_MAX_HEIGHT 1440
 
 #define AUV2_ENTRY SergeMiddleCombined_Entry
 #define AUV2_ENTRY_STR "SergeMiddleCombined_Entry"
@@ -42,7 +50,7 @@
 #define AAX_TYPE_IDS 'SmC1', 'SmC2'
 #define AAX_TYPE_IDS_AUDIOSUITE 'SmA1', 'SmA2'
 #define AAX_PLUG_MFR_STR "MartialSystems"
-#define AAX_PLUG_NAME_STR "Serge Middle\nSmCb"
+#define AAX_PLUG_NAME_STR "SLEWFOLD\nSmCb"
 #define AAX_PLUG_CATEGORY_STR "Effect"
 #define AAX_DOES_AUDIOSUITE 0
 
@@ -50,7 +58,7 @@
 
 #define CLAP_MANUAL_URL ""
 #define CLAP_SUPPORT_URL ""
-#define CLAP_DESCRIPTION "Serge Middle, PLEAT and slope with patch jacks"
+#define CLAP_DESCRIPTION "SLEWFOLD, PLEAT and slope with patch jacks"
 #define CLAP_FEATURES "audio-effect", "distortion"
 
 #define APP_NUM_CHANNELS 2

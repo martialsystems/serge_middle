@@ -7,8 +7,9 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 The SVGs are the source. Lettering is outlined from a Helvetica-class sans
 (Liberation Sans; Arial is the metric twin on macOS), so the files carry no
-<text> and render the same in any SVG renderer. Layout fractions match
-SergeMiddle/PleatView.h, SlopeAC/SlopeView.h, and SergeMiddleCombined/PatchView.h.
+<text> and render the same in any SVG renderer. The standalone plates match
+SergeMiddle/PleatView.h and SlopeAC/SlopeView.h. The combined plate is one
+1600 by 960 paperface grid; jack fractions match SergeMiddleCombined/PatchView.h.
 
 Needs fontTools. PNG output also needs cairosvg and Pillow.
 The plate PNGs are RGB (colour type 2). The knob and switch PNGs are RGBA.
@@ -28,6 +29,12 @@ from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[2]
 W, H = 416, 624
+
+import sys
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from paper_plate import PLATE_H, PLATE_W, render as render_paper_plate
 WHITE = "#f3f5f8"
 
 FONT_CANDIDATES = {
@@ -547,135 +554,9 @@ def append_lever(o, cx, cy, direction, gid):
     o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="2.5" fill="url(#{gid}nut)" stroke="#2a2d33" stroke-width="0.5"/>')
 
 
-def one_readout(o, cx):
-    o.append(
-        f'<rect x="{f(cx - 44)}" y="{f(CAP_T + 2)}" width="88" height="{f(CAP_B - CAP_T - 4)}" '
-        f'rx="3" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>'
-    )
+def paper_plate_svg():
+    return render_paper_plate(text_path, f, append_lever, BOLD, REG)
 
-
-def switch_well(o, cx, cy, legend, left, right):
-    o.append(f'<path fill="{WHITE}" d="{text_path(legend, cx, cy - 32, 12, BOLD, 1.6)}"/>')
-    o.append(
-        f'<rect x="{f(cx - 27)}" y="{f(cy - 15)}" width="54" height="30" rx="5" '
-        f'fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>'
-    )
-    o.append(f'<path fill="#dfe3ea" d="{text_path(left, cx - 34, cy + 3.4, 9.5, BOLD, 0.8, "end")}"/>')
-    o.append(f'<path fill="#dfe3ea" d="{text_path(right, cx + 34, cy + 3.4, 9.5, BOLD, 0.8, "start")}"/>')
-
-
-TOP_KNOB_X = 0.50 * W
-TOP_KNOB_Y = 0.36 * H
-TOP_SW_Y = 0.62 * H
-TOP_JACK_X = [0.22 * W, 0.50 * W, 0.78 * W]
-BOT_KNOB_X = 0.50 * W
-BOT_KNOB_Y = 0.36 * H
-
-
-def arc_scale(o, cx, cy, label, marks, minor):
-    o.append(f'<path fill="{WHITE}" d="{text_path(label, cx, cy - KNOB_Y + 134, 13, BOLD, 2.2)}"/>')
-    r_in, r_out, r_maj = 66, 72, 76
-    for i in range(minor + 1):
-        th = math.radians(-130 + 260 * i / minor)
-        s, c = math.sin(th), math.cos(th)
-        o.append(
-            f'<line x1="{f(cx + r_in * s)}" y1="{f(cy - r_in * c)}" x2="{f(cx + r_out * s)}" y2="{f(cy - r_out * c)}" '
-            f'stroke="{WHITE}" stroke-width="1" stroke-linecap="round"/>'
-        )
-    for n, txt in marks:
-        th = math.radians(-130 + 260 * n)
-        s, c = math.sin(th), math.cos(th)
-        o.append(
-            f'<line x1="{f(cx + r_in * s)}" y1="{f(cy - r_in * c)}" x2="{f(cx + r_maj * s)}" y2="{f(cy - r_maj * c)}" '
-            f'stroke="{WHITE}" stroke-width="1.6" stroke-linecap="round"/>'
-        )
-        tx, ty = cx + 87 * s, cy - 87 * c + 3.3
-        o.append(f'<path fill="#dfe3ea" d="{text_path(txt, tx, ty, 9.5, REG, 0.3)}"/>')
-
-
-# ---------------------------------------------------------------- VCM top and bottom
-#
-# NOTES.md names the top as a VCA or soft square-up with a HI/LO switch, and
-# the 2022 Random*Source top adds an AC/DC couple switch. The original module
-# has one knob on this section. It does not add the factory VC attenuator
-# (that mod is the middle and the bottom). Jacks are the audio in, the VC in,
-# and one out. The bottom is the level-compensated full-wave rectifier: one
-# knob, the factory VC attenuator, and two outs (the second squared up).
-# Coupling colours follow the Serge black/blue convention. GAIN, MODE, LEVEL,
-# and the bottom VC attenuator are editor controls. COUPLE is plate art.
-
-
-def top_body(o):
-    panel_base(o)
-    o.append(f'<path fill="{WHITE}" d="{text_path("TOP", W / 2, 68, 38, BOLD, 9)}"/>')
-    o.append(f'<path fill="#c7cdd8" d="{text_path("WAVE MULTIPLIERS", W / 2, 90, 10.5, BOLD, 2.2)}"/>')
-    o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
-    arc_scale(o, TOP_KNOB_X, TOP_KNOB_Y, "GAIN", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
-    one_readout(o, TOP_KNOB_X)
-    switch_well(o, 0.30 * W, TOP_SW_Y, "MODE", "LO", "HI")
-    switch_well(o, 0.70 * W, TOP_SW_Y, "COUPLE", "AC", "DC")
-    # GAIN and MODE are editor controls. COUPLE stays on the plate: the audio path is AC.
-    append_lever(o, 0.70 * W, TOP_SW_Y, "left", "tc")
-    jacks(o, ["IN", "VC", "OUT"], ["black", "blue", "black"], TOP_JACK_X, "T")
-
-
-def bottom_body(o):
-    panel_base(o)
-    o.append(f'<path fill="{WHITE}" d="{text_path("BOTTOM", W / 2, 68, 34, BOLD, 6)}"/>')
-    o.append(f'<path fill="#c7cdd8" d="{text_path("WAVE MULTIPLIERS", W / 2, 90, 10.5, BOLD, 2.2)}"/>')
-    o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
-    arc_scale(o, BOT_KNOB_X, BOT_KNOB_Y, "LEVEL", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
-    one_readout(o, BOT_KNOB_X)
-    # Factory-mod VC attenuator, above the VC jack. Noon is the drawn standby.
-    cx, cy, r = JACK_X[1], 396.0, 22.0
-    o.append(f'<path fill="{WHITE}" d="{text_path("VC", cx + 40, 388, 11, BOLD, 1.4, "start")}"/>')
-    o.append(f'<path fill="#c7cdd8" d="{text_path("ATTEN", cx + 40, 402, 8, BOLD, 1.0, "start")}"/>')
-    for i in range(11):
-        th = math.radians(-130 + 26 * i)
-        s, c = math.sin(th), math.cos(th)
-        r_out = r + (7 if i in (0, 10) else 4.5)
-        o.append(
-            f'<line x1="{f(cx + (r + 1.5) * s)}" y1="{f(cy - (r + 1.5) * c)}" x2="{f(cx + r_out * s)}" y2="{f(cy - r_out * c)}" '
-            f'stroke="{WHITE}" stroke-width="{1.4 if i in (0, 10) else 0.9}" stroke-linecap="round"/>'
-        )
-    o.append(f'<path fill="#aab2c0" d="{text_path("0", cx - 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
-    o.append(f'<path fill="#aab2c0" d="{text_path("1", cx + 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
-    # LEVEL and the VC attenuator are editor controls.
-    jacks(o, ["IN", "VC", "OUT 1", "OUT 2"], ["black", "blue", "black", "black"], prefix="B")
-
-
-# ---------------------------------------------------------------- combined
-
-def middle_plate_svg():
-    # Five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2.
-    # COUPLE is the only control drawn as a cap. The editor draws the rest.
-    panels = 5
-    o = []
-    o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{panels * W}" height="{H}" viewBox="0 0 {panels * W} {H}">')
-    o.append('<!-- Serge Middle combined plate. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
-    o.append('<!-- Panels of 416: TOP x 0, PLEAT x 416, BOTTOM x 832, SLOPE 1 x 1248, SLOPE 2 x 1664. Live controls match PatchView.h. Top: GAIN knob (0.50 W, 0.36 H), MODE and COUPLE switches at y 0.62 H, x 0.30 W and 0.70 W, jacks y 0.785 H at x 0.22/0.50/0.78 W. COUPLE is plate art. Bottom: LEVEL knob (0.50 W, 0.36 H), VC ATTEN centre (JACK_X[1], 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope 2 repeats slope 1 with no OUT normal. Text is outlined (Liberation Sans). -->')
-    o.append('<g>')
-    top_body(o)
-    o.append('</g>')
-    o.append(f'<g transform="translate({W},0)">')
-    pleat_body(o, combined=True)
-    o.append('</g>')
-    o.append(f'<g transform="translate({2 * W},0)">')
-    bottom_body(o)
-    o.append('</g>')
-    o.append(f'<g transform="translate({3 * W},0)">')
-    slope_body(o, combined=True, mark="1", normal_out=True, caps=False)
-    o.append('</g>')
-    o.append(f'<g transform="translate({4 * W},0)">')
-    slope_body(o, combined=True, mark="2", normal_out=False, caps=False)
-    o.append('</g>')
-    # Slope 1 OUT to PLEAT VC. Slope 2 has no normal.
-    x0, x1, y = 3 * W + SLOPE6_X[4], W + JACK_X[2], 562
-    o.append(f'<path d="M{f(x0)},542 L{f(x0)},{y} L{f(x1)},{y} L{f(x1)},549" fill="none" stroke="#9fb0c8" stroke-width="1.1" stroke-dasharray="4 3"/>')
-    o.append(f'<path d="M{f(x1 - 4)},550 L{f(x1)},543 L{f(x1 + 4)},550 Z" fill="#9fb0c8"/>')
-    o.append(f'<path fill="#9fb0c8" d="{text_path("NORMAL: SLOPE 1 OUT TO PLEAT VC", (x0 + x1) / 2, y + 16, 7.5, BOLD, 1.0)}"/>')
-    o.append('</svg>')
-    return "\n".join(o) + "\n"
 
 # ---------------------------------------------------------------- output
 
@@ -706,7 +587,7 @@ def main() -> int:
         (slope / "slope_plate.svg", slope_plate_svg(), (W, H), "RGB"),
         (slope / "slope_switch.svg", switch_svg(), (48, 56), "RGBA"),
         (slope / "slope_route.svg", route_svg(), (48, 84), "RGBA"),
-        (combo / "middle_plate.svg", middle_plate_svg(), (5 * W, H), "RGB"),
+        (combo / "middle_plate.svg", paper_plate_svg(), (PLATE_W, PLATE_H), "RGB"),
     ]
     for path, text, (w, h), mode in jobs:
         path.write_text(text, encoding="utf-8")

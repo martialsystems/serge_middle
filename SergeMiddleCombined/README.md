@@ -1,8 +1,12 @@
-# Serge Middle
+# SLEWFOLD
 
-`SergeMiddleCombined` is the Wave Multipliers module and two slope sections in one VST3. The plate is five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
+SLEWFOLD is the Wave Multipliers module and two slope sections in one VST3. The bundle id, the manufacturer code, and the unique id are unchanged (`PLUG_MFR_ID` `'Mrsy'`, `PLUG_UNIQUE_ID` `'SmCb'`). `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
 
-Window: 2080 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the knobs, the switches, the value captions, the rate readouts, the cables, and the hover labels. The top COUPLE lever is drawn on the plate and is not a parameter.
+The plate is the hand-drawn 1600 by 960 face (`resources/slewfold_v6.svg`). Knobs are not in the bitmap: `tools/art/render_slewfold.py` removes the knob groups, the LED groups, and the moving switches, then `rsvg-convert` writes `slewfold_plate.png` and the @2x plate. The editor draws each knob from `knob_filmstrip.png` (64 frames, -135 to +135 degrees, 72 px at 1x) at the ids_v6 centre. Hovering a knob writes its value into that knob's readout rect. Toggles and the slope lamps are drawn live. The top COUPLE lever is drawn on the plate and is not a parameter. END lamps follow the END jack. Cycle lamps light while Cycle is on and that slope's OUT is at or above 2.5 V.
+
+Window: 1440 by 864, scaling from 1200 by 720 up to 2400 by 1440. The corner resizer and the host resize keep that aspect. The default fits a 1920 by 1080 screen with the Dock. The minimum fits a 1280 by 800 screen. The plate art stays 1600 by 960 and is fitted into the window. Format: VST3, via Unix Makefiles. Black jacks are bipolar, grey jacks are unipolar CV, the white jack is the DC-coupled input, and red jacks are trigger or gate. Top Gain and Bottom Level read `0` at the counterclockwise stop, the same `0` as the tick, not `0.000`.
+
+![SLEWFOLD panel](resources/slewfold_plate.png)
 
 ## Parameters
 
@@ -85,11 +89,13 @@ Zero cables is a complete instrument. A cable in an input breaks that input's no
 
 ## Routing
 
-One cable per input. An output may feed any number of inputs. A drag from a jack to a jack always stores one output into one input. Input to input, and output to output, are refused. A new cable into an occupied input replaces the old one. Right-click a jack to unplug that jack, or to unplug all.
+One cable per input. An output may feed any number of inputs, drawn as a stack. A new cable runs from an output to an input. A new cable into an occupied input replaces the old one. Inputs do not sum, so a second cable is not stacked on an input. A drag from an output always starts another cable, even when the output already has cables, so cables stack like Serge banana plugs and each stacked plug sits 6 px higher. To move a cable, drag its input end: dropping that plug on empty space unplugs it, and dropping it on another input moves it. Hovering an output says "drag to patch, more cables stack". Right-click a jack to unplug that jack, or to unplug all.
+
+The cable drawing is Lift's (repository `martialsystems/lift`, branch `tape-engine-juce`): `panel/CableRope.h` for the rope, `panel/LiftPanelPaint.cpp` for the cloth, the dashes, the plugs, and the in-hand cubic, `panel/PanelData.h` for the six cloth colours, `panel/PaintUtil.h` for the grey used while a cable is carried, and `panel/LiftPanel.cpp` for the 6 px stack step. Audio outputs use the cream cloth. END outputs use the red cloth. Each extra plug on an output sits 6 px higher and the plugs under it are drawn open, the way Lift draws a stackable plug. The rope is 36 nodes, gravity 0.45, damping 0.985 then 0.9, ten constraint passes, slack `d + min(0.3 d + 40, 140)`. A new rope is settled before it is shown. Dropping or moving a cable then kicks that rope, and the UI steps it twice a frame on the 0.9 damping until it has stayed under 0.03 px for 20 frames. The redraw for that layer stops there. The routing bytes are not extended, so a project saved by the previous editor still loads: colour, sag, and stack level are derived from those bytes.
 
 Every jack-to-jack transfer reads the source from the previous sample. That one-sample delay covers cables and the slope OUT normal, so a feedback patch is defined and does not depend on which jack is stepped first. Host audio into an unpatched PLEAT IN 1 is the same sample. PLEAT OUT back to the host is the same sample. The MIDI gate into an unpatched TRIG is the same sample.
 
-The UI writes one atomic byte per input. The audio block copies those bytes once, then uses that copy for every sample in the block. Hover meters are the minimum and maximum of channel 0 over the last block. A spread above 0.05 V draws as a range, for example `SLOPE END  +0.00 .. +5.00 V`. A tighter block draws as one voltage, for example `SLOPE END  +5.00 V` at idle. Cable colour follows the input index, so unplugging one cable leaves the colours of the others. A drag that is hovering an input uses that input's colour. Otherwise the drag is red.
+The UI writes one atomic byte per input. The audio block copies those bytes once, then uses that copy for every sample in the block. Hover meters are the minimum and maximum of channel 0 over the last block. A spread above 0.05 V draws as a range, for example `SLOPE END  +0.00 .. +5.00 V`. A tighter block draws as one voltage, for example `SLOPE END  +5.00 V` at idle. Cable colour follows the output, so unplugging one cable leaves the colours of the others.
 
 ## VC law
 
@@ -151,6 +157,18 @@ Slope 2 is the same circuit as slope 1: rise, fall, Cycle, VC attenuverter, RISE
 
 ## Gaps
 
-There is no 1V/OCT jack. The top COUPLE switch is drawn and is not in the audio path: top IN stays on the 10 Hz block. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay. Host ±1 stays ±2.5 V, the locked PLEAT level. The new jacks use that same volt domain. They are not rescaled to a host sample of ±5 V.
+There is no 1V/OCT jack. The top COUPLE switch is drawn and is not in the audio path: top IN stays on the 10 Hz block. One input takes one cable: several cables are not stacked on one input. An output does stack. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay. Host ±1 stays ±2.5 V, the locked PLEAT level. The new jacks use that same volt domain. They are not rescaled to a host sample of ±5 V.
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
+
+## Test oscillator
+
+A small TEST OSC strip sits at the top left of the plate: a SINE / SAW / SQR lever, FREQ (20 Hz to 2 kHz, default 110 Hz), LEVEL (-60 to 0 dB, where 0 dB is +/-5 V, default -12 dB, about +/-1.26 V), an OUT jack (black, bipolar), and a TO IN 1 lever. OSC OUT is a normal patch source. With TO IN 1 on (the default), the oscillator is the PLEAT IN 1 normal in place of host audio, so the panel sounds with no input. A cable into IN 1 always wins. Turn TO IN 1 off to hear host audio on an unpatched IN 1. This is the simplest choice: a toggle, not a silence detector. Saw and square edges use PolyBLEP.
+
+## Starter patch
+
+A fresh instance opens on a starter patch that runs through every section. The test sine (110 Hz, -12 dB) is cabled into PLEAT IN 1. Slope 1 cycles slowly (Rise 1.5 s, Fall 2.5 s) and is cabled into PLEAT VC (VC Depth 0.5, Fold 2), so the fold sweeps. PLEAT OUT is cabled into RECTIFIER IN (Level 0.6), RECTIFIER OUT 1 into VCA IN, and Slope 2, cycling fast (Rise 20 ms, Fall 350 ms), into VCA VC (Gain 0.1), so the VCA pulses about 2.7 times a second. The host hears VCA OUT. Every jack stays inside +/-5 V; see the starter_patch playground patch.
+
+The host output is the Host Out parameter: PLEAT OUT (the only choice before it existed), VCA OUT (the default), or RECTIFIER OUT 1. It has no panel control yet; the panel marks VCA OUT as the host feed. An older project saved before Host Out loads it at its default, VCA OUT, so set it to PLEAT OUT to hear such a project as before.
+
+The knob values are the parameter defaults, so right-click or double-click on a knob returns it to the starter value. The routing is set in the constructor, not in OnReset: hosts call OnReset on every sample-rate or transport change, and that must not wipe a user's cables. A saved project or saved app state replaces both.

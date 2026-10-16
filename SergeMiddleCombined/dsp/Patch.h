@@ -12,6 +12,7 @@
 #include "../../SlopeAC/dsp/AcCoupler.h"
 #include "WaveEnds.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -50,7 +51,9 @@ enum Output : int8_t
   Slope2End = 7,
   Slope2Out = 8,
   Slope2Ac = 9,
-  kNumOutputs = 10
+  // Appended. A version 2 blob from before it only names sources 0..9.
+  OscOut = 10,
+  kNumOutputs = 11
 };
 
 inline constexpr int kMeterCount = kNumInputs + kNumOutputs;
@@ -88,6 +91,14 @@ inline int MeterOf(bool output, int index)
 {
   return output ? kNumInputs + index : index;
 }
+
+// Output 0 is PLEAT OUT. A default std::atomic<int8_t> is 0, and a fresh page
+// is 0, so an uninitialized routing word draws that cable. The word is born
+// unpatched.
+struct RoutingWord
+{
+  std::atomic<int8_t> source{-1};
+};
 
 // One output per input. -1 is unpatched. A new cable replaces the old one.
 struct Routing
@@ -230,6 +241,77 @@ struct SectionControls
   double slope2Depth = 0.0;
   int slope2Route = 1;
   const Inject* inject = nullptr;
+  // Test oscillator. OSC OUT always runs. oscToIn1 makes it the PLEAT IN 1
+  // normal in place of host audio. Off here, so callers that do not set it
+  // (the playground, older tests) render exactly as before.
+  int oscWave = 0;
+  double oscFreq = 110.0;
+  double oscVolts = 0.0;
+  bool oscToIn1 = false;
+};
+
+// Test oscillator levels. 0 dB is +/-5 V, so the -12 dB default is about +/-1.26 V.
+inline constexpr double kOscFullScaleVolts = 5.0;
+inline double OscVoltsFromDb(double db)
+{
+  if (!std::isfinite(db))
+    return 0.0;
+  return kOscFullScaleVolts * std::pow(10.0, db / 20.0);
+}
+
+// Sine, saw, or square. The saw and square edges use PolyBLEP so they do not alias badly.
+class TestOsc
+{
+public:
+  void Reset() { mPhase = 0.0; }
+
+  double Step(int wave, double freq, double sampleRate)
+  {
+    if (!(sampleRate > 0.0) || !std::isfinite(sampleRate))
+      sampleRate = 48000.0;
+    if (!std::isfinite(freq) || freq < 1.0)
+      freq = 1.0;
+    double dt = freq / sampleRate;
+    if (dt > 0.45)
+      dt = 0.45;
+    const double t = mPhase;
+    double y = 0.0;
+    if (wave == 1)
+      y = (2.0 * t - 1.0) - Blep(t, dt);
+    else if (wave == 2)
+    {
+      y = t < 0.5 ? 1.0 : -1.0;
+      y += Blep(t, dt);
+      double t2 = t + 0.5;
+      if (t2 >= 1.0)
+        t2 -= 1.0;
+      y -= Blep(t2, dt);
+    }
+    else
+      y = std::sin(2.0 * 3.14159265358979323846 * t);
+    mPhase += dt;
+    if (mPhase >= 1.0)
+      mPhase -= 1.0;
+    return y;
+  }
+
+private:
+  double mPhase = 0.0;
+
+  static double Blep(double t, double dt)
+  {
+    if (t < dt)
+    {
+      const double x = t / dt;
+      return x + x - x * x - 1.0;
+    }
+    if (t > 1.0 - dt)
+    {
+      const double x = (t - 1.0) / dt;
+      return x * x + x + x + 1.0;
+    }
+    return 0.0;
+  }
 };
 
 // Patched IN 2 is a jack voltage, clamped to ±10 V. A non-finite value is 0.
@@ -373,6 +455,8 @@ public:
     mOut[Slope2End] = kGateVolts;
     mAppliedG = serge::kGDefault;
     mHost = 0.0;
+    mOsc.Reset();
+    mFs = sampleRate;
   }
 
   // `arm` is the one-sample Cycle arm. `cycle` keeps the END to TRIG cord.
@@ -389,9 +473,18 @@ public:
     if (!std::isfinite(sS))
       sS = 0.0;
 
+    double oscNow = extra.oscVolts * mOsc.Step(extra.oscWave, extra.oscFreq, mFs);
+    if (!std::isfinite(oscNow))
+      oscNow = 0.0;
     const bool in1Patched = Patched(routing, PleatIn1);
     const bool in2Patched = Patched(routing, PleatIn2);
-    mIn[PleatIn1] = in1Patched ? Read(routing, PleatIn1) : serge::kAudioFullScaleVolts * hostIn;
+    const bool in1Volts = in1Patched || extra.oscToIn1;
+    if (in1Patched)
+      mIn[PleatIn1] = Read(routing, PleatIn1);
+    else if (extra.oscToIn1)
+      mIn[PleatIn1] = oscNow;
+    else
+      mIn[PleatIn1] = serge::kAudioFullScaleVolts * hostIn;
     mIn[PleatIn2] = in2Patched ? ClampPatchedIn2(Read(routing, PleatIn2)) : sS;
     mIn[PleatVc] = Patched(routing, PleatVc) ? Read(routing, PleatVc) : mPrev[SlopeOut];
     mIn[SlopeIn] = Patched(routing, SlopeIn) ? Read(routing, SlopeIn) : 0.0;
@@ -416,7 +509,7 @@ public:
                                      cycle, arm, slopeVcDepth, slopeRoute);
 
     mAppliedG = FoldWithVc(gS, depth, mIn[PleatVc]);
-    const double a = in1Patched ? mIn[PleatIn1] / serge::kAudioFullScaleVolts : hostIn;
+    const double a = in1Volts ? mIn[PleatIn1] / serge::kAudioFullScaleVolts : hostIn;
     mHost = mPleat.Step(a, mAppliedG, sS, in2Patched, mIn[PleatIn2]);
 
     double pleatOut = serge::kAudioFullScaleVolts * mHost;
@@ -441,6 +534,7 @@ public:
     mOut[Slope2End] = slope2.end;
     mOut[Slope2Out] = slope2.out;
     mOut[Slope2Ac] = slope2.ac;
+    mOut[OscOut] = oscNow;
 
     for (int i = 0; i < kNumOutputs; ++i)
       mPrev[i] = mOut[i];
@@ -609,6 +703,8 @@ private:
   double mOut[kNumOutputs] = {};
   double mAppliedG = serge::kGDefault;
   double mHost = 0.0;
+  TestOsc mOsc;
+  double mFs = 48000.0;
 };
 
 } // namespace patch

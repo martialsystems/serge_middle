@@ -15,33 +15,11 @@ static_assert(std::atomic<float>::is_always_lock_free, "meter atomic");
 
 namespace
 {
-constexpr int kCableTag = 100;
 constexpr int kRateTag = 101;
 constexpr int kRate2Tag = 102;
-
-IRECT KnobAt(const IRECT& plate, float xFrac, float yFrac, float diameter)
-{
-  const float cx = plate.L + xFrac * plate.W();
-  const float cy = plate.T + yFrac * plate.H();
-  const float half = 0.5f * diameter + 14.f;
-  return IRECT(cx - half, cy - half, cx + half, cy + half);
-}
-
-IRECT SwitchAt(const IRECT& plate, float xFrac, float yFrac)
-{
-  const float cx = plate.L + xFrac * plate.W();
-  const float cy = plate.T + yFrac * plate.H();
-  return IRECT(cx - 24.f, cy - 14.f, cx + 24.f, cy + 14.f);
-}
-
-IRECT AttenAt(const IRECT& plate)
-{
-  // 0.39 of a 416-wide panel, 44 px cap, same pad as the PLEAT VC Depth knob.
-  const float cx = plate.L + 162.24f;
-  const float cy = plate.T + 396.f;
-  const float half = 30.f;
-  return IRECT(cx - half, cy - half, cx + half, cy + half);
-}
+constexpr double kStarterFold = 2.0;
+constexpr double kStarterRise = 1.5;
+constexpr double kStarterFall = 2.5;
 
 void ShowTime(double value, WDL_String& display)
 {
@@ -60,45 +38,66 @@ void ShowRoute(double value, WDL_String& display)
     name = "FALL";
   display.Set(name);
 }
+
+void ShowUnit(double value, WDL_String& display)
+{
+  char buf[16];
+  vcm::FormatUnit(value, buf, sizeof buf);
+  display.Set(buf);
+}
 } // namespace
 
 SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
   for (auto& slot : mRouting)
-    slot.store(-1, std::memory_order_relaxed);
+    slot.source.store(-1, std::memory_order_relaxed);
   for (auto& meter : mMeterMin)
     meter.store(0.f, std::memory_order_relaxed);
   for (auto& meter : mMeterMax)
     meter.store(0.f, std::memory_order_relaxed);
 
-  GetParam(kFold)->InitDouble("Fold", serge::kGDefault, serge::kGMin, serge::kGMax, 0.001, "",
+  // Defaults are the starter patch (see README): a sine folded at 2, swept by
+  // Slope 1 cycling 1.5 s up and 2.5 s down through the PLEAT VC normal.
+  GetParam(kFold)->InitDouble("Fold", kStarterFold, serge::kGMin, serge::kGMax, 0.001, "",
                               0, "", IParam::ShapeExp());
   GetParam(kIn2)->InitDouble("IN 2 DC", serge::kSymDefault, serge::kSymMin, serge::kSymMax, 0.01, "V");
   GetParam(kVcDepth)->InitDouble("VC Depth", 0.5, 0.0, 1.0, 0.001);
-  GetParam(kRise)->InitDouble("Rise", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
-  GetParam(kFall)->InitDouble("Fall", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kRise)->InitDouble("Rise", kStarterRise, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kFall)->InitDouble("Fall", kStarterFall, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
   GetParam(kRise)->SetDisplayFunc(ShowTime);
   GetParam(kFall)->SetDisplayFunc(ShowTime);
-  GetParam(kCycle)->InitBool("Cycle", false);
+  GetParam(kCycle)->InitBool("Cycle", true);
   // Appended so a project saved before these controls keeps the six above.
   // Depth 0 leaves a slope VC cord at 0 V. Route 1 is BOTH, the circuit default.
   GetParam(kSlopeVc)->InitDouble("Slope VC", 0.0, -1.0, 1.0, 0.001);
   GetParam(kRoute)->InitInt("Route", 1, 0, 2);
   GetParam(kRoute)->SetDisplayFunc(ShowRoute);
   // Appended after Route. An older project keeps the eight above and loads these at the defaults.
-  GetParam(kTopGain)->InitDouble("Top Gain", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kTopGain)->InitDouble("Top Gain", 0.1, 0.0, 1.0, 0.001);
+  GetParam(kTopGain)->SetDisplayFunc(ShowUnit);
   GetParam(kTopHi)->InitBool("Top HI", false);
-  GetParam(kBottomGain)->InitDouble("Bottom Level", 0.0, 0.0, 1.0, 0.001);
+  GetParam(kBottomGain)->InitDouble("Bottom Level", 0.6, 0.0, 1.0, 0.001);
+  GetParam(kBottomGain)->SetDisplayFunc(ShowUnit);
   GetParam(kBottomVc)->InitDouble("Bottom VC", 1.0, 0.0, 1.0, 0.001);
-  GetParam(kRise2)->InitDouble("Rise 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
-  GetParam(kFall2)->InitDouble("Fall 2", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kRise2)->InitDouble("Rise 2", 0.02, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kFall2)->InitDouble("Fall 2", 0.35, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
   GetParam(kRise2)->SetDisplayFunc(ShowTime);
   GetParam(kFall2)->SetDisplayFunc(ShowTime);
-  GetParam(kCycle2)->InitBool("Cycle 2", false);
+  GetParam(kCycle2)->InitBool("Cycle 2", true);
   GetParam(kSlopeVc2)->InitDouble("Slope VC 2", 0.0, -1.0, 1.0, 0.001);
   GetParam(kRoute2)->InitInt("Route 2", 1, 0, 2);
   GetParam(kRoute2)->SetDisplayFunc(ShowRoute);
+  // Test oscillator, appended after Route 2.
+  GetParam(kOscWave)->InitEnum("Osc Wave", 0, {"SINE", "SAW", "SQUARE"});
+  GetParam(kOscFreq)->InitDouble("Osc Freq", 110.0, 20.0, 2000.0, 0.01, "Hz", 0, "", IParam::ShapeExp());
+  GetParam(kOscLevel)->InitDouble("Osc Level", -12.0, -60.0, 0.0, 0.1, "dB");
+  GetParam(kOscToIn1)->InitBool("Osc to IN 1", true);
+  // Which jack the host hears. PLEAT OUT was the only choice before this
+  // parameter. The starter patch ends at the VCA, so the default is VCA OUT.
+  GetParam(kHostOut)->InitEnum("Host Out", 1, {"PLEAT OUT", "VCA OUT", "RECTIFIER OUT 1"});
+
+  ApplyRouting(StarterRouting());
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -106,83 +105,82 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    pGraphics->AttachPanelBackground(IColor(255, 12, 17, 30));
+    // Scale keeps the plate aspect. The minimum is 1200 by 720. The maximum
+    // is 2400 by 1440. The default 1440 by 864 fits 1920 by 1080 with the Dock.
+    pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false, IColor(210, 26, 24, 22));
+    pGraphics->SetScaleConstraints(static_cast<float>(PLUG_MIN_WIDTH) / static_cast<float>(PLUG_WIDTH),
+                                   static_cast<float>(PLUG_MAX_WIDTH) / static_cast<float>(PLUG_WIDTH));
+    pGraphics->EnableMouseOver(true);
+    pGraphics->AttachPanelBackground(IColor(255, 244, 239, 228));
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     pGraphics->AttachTextEntryControl();
-
-    const IRECT bounds = pGraphics->GetBounds();
-    const float panelW = bounds.W() / static_cast<float>(patchview::kPanelCount);
-    const auto panelAt = [&](int index) {
-      const float x0 = bounds.L + static_cast<float>(index) * panelW;
-      return IRECT(x0, bounds.T, x0 + panelW, bounds.B);
-    };
-    // Panel 0 top, 1 PLEAT, 2 bottom, 3 slope 1, 4 slope 2.
-    // The COUPLE lever stays on the plate. It is not a parameter.
-    const IRECT top = panelAt(patchview::kTopPanel);
-    const IRECT pleat = panelAt(patchview::kPleatPanel);
-    const IRECT bottom = panelAt(patchview::kBottomPanel);
-    const IRECT slope = panelAt(patchview::kSlopePanel);
-    const IRECT slope2 = panelAt(patchview::kSlope2Panel);
-    const IBitmap plate = pGraphics->LoadBitmap("middle_plate.png");
-    const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
-    const IBitmap cycle = pGraphics->LoadBitmap("slope_switch.png", 2);
-    const IBitmap route = pGraphics->LoadBitmap("slope_route.png", 3);
-
-    pGraphics->AttachControl(new ILambdaControl(
-        bounds,
-        [plate](ILambdaControl*, IGraphics& g, IRECT& r) { g.DrawFittedBitmap(plate, r); },
-        0, false, false, kNoParameter, true));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kFoldX), kFold, knob));
-    pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kSymX), kIn2, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(pleat), kVcDepth, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(top, 0.50f, 0.36f, 120.f), kTopGain, knob));
-    pGraphics->AttachControl(new IBSwitchControl(SwitchAt(top, 0.30f, 0.62f), cycle, kTopHi));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(KnobAt(bottom, 0.50f, 0.36f, 120.f), kBottomGain, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(AttenAt(bottom), kBottomVc, knob));
-
-    const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(top, 0.50f), kTopGain, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(bottom, 0.50f), kBottomGain, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kFoldX), kFold, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kSymX), kIn2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kRiseX), kRise, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope, slopeview::kFallX), kFall, knob));
-    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope), kSlopeVc, knob, slopeview::kVcD));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kRiseX), kRise, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope, slopeview::kFallX), kFall, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope), cycle, kCycle));
-    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope), kRoute, route));
-    pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope), kRise, kFall, kCycle,
-                                                        [this]() { return GetSampleRate(); }),
-                             kRateTag);
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kRiseX), kRise2, knob));
-    pGraphics->AttachControl(new slopeview::SlopeKnob(slopeview::KnobBounds(slope2, slopeview::kFallX), kFall2, knob));
-    pGraphics->AttachControl(new slopeview::ScaledKnob(slopeview::VcKnobBounds(slope2), kSlopeVc2, knob, slopeview::kVcD));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kRiseX), kRise2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new ICaptionControl(slopeview::CaptionBounds(slope2, slopeview::kFallX), kFall2, valueText,
-                                                 COLOR_TRANSPARENT, false));
-    pGraphics->AttachControl(new IBSwitchControl(slopeview::SwitchBounds(slope2), cycle, kCycle2));
-    pGraphics->AttachControl(new slopeview::RouteSwitch(slopeview::RouteBounds(slope2), kRoute2, route));
-    pGraphics->AttachControl(new slopeview::RateReadout(slopeview::RateBounds(slope2), kRise2, kFall2, kCycle2,
-                                                        [this]() { return GetSampleRate(); }),
-                             kRate2Tag);
-    pGraphics->AttachControl(new patchview::CableControl(bounds, *this), kCableTag);
+    // Spots are the ids_v6 centres. tools/art/slewfold_face.py is the same list.
+    patchview::AttachFace(pGraphics, *this);
   };
 #endif
 }
+
+patch::Routing SergeMiddleCombined::StarterRouting()
+{
+  patch::Routing routing;
+  routing.Connect(patch::OscOut, patch::PleatIn1);
+  routing.Connect(patch::SlopeOut, patch::PleatVc);
+  routing.Connect(patch::PleatOut, patch::BottomIn);
+  routing.Connect(patch::BottomOut1, patch::TopIn);
+  routing.Connect(patch::Slope2Out, patch::TopVc);
+  return routing;
+}
+
+SergeMiddleCombined::~SergeMiddleCombined()
+{
+#if IPLUG_EDITOR
+  delete mFace;
+  mFace = nullptr;
+#endif
+}
+
+#if IPLUG_EDITOR
+patchview::FaceState* SergeMiddleCombined::EditorFace()
+{
+  if (mFace == nullptr)
+    mFace = new patchview::FaceState();
+  return mFace;
+}
+#endif
+
+#if IPLUG_EDITOR
+void SergeMiddleCombined::OnParentWindowResize(int width, int height)
+{
+  if (mFittingResize || GetUI() == nullptr)
+    return;
+  const float platform = GetUI()->GetPlatformWindowScale();
+  if (!(platform > 0.f))
+    return;
+  const float w = static_cast<float>(width) / platform;
+  const float h = static_cast<float>(height) / platform;
+  float scale = std::min(w / static_cast<float>(PLUG_WIDTH), h / static_cast<float>(PLUG_HEIGHT));
+  const float lo = static_cast<float>(PLUG_MIN_WIDTH) / static_cast<float>(PLUG_WIDTH);
+  const float hi = static_cast<float>(PLUG_MAX_WIDTH) / static_cast<float>(PLUG_WIDTH);
+  if (scale < lo)
+    scale = lo;
+  if (scale > hi)
+    scale = hi;
+  const float have = GetUI()->GetDrawScale();
+  const float wantW = static_cast<float>(PLUG_WIDTH) * scale;
+  const float wantH = static_cast<float>(PLUG_HEIGHT) * scale;
+  if (std::fabs(w - wantW) < 2.f && std::fabs(h - wantH) < 2.f && std::fabs(have - scale) < 0.01f)
+    return;
+  mFittingResize = true;
+  GetUI()->Resize(PLUG_WIDTH, PLUG_HEIGHT, scale, true);
+  mFittingResize = false;
+}
+#endif
 
 patch::Routing SergeMiddleCombined::RoutingSnapshot() const
 {
   patch::Routing routing;
   for (int i = 0; i < patch::kNumInputs; ++i)
-    routing.source[i] = mRouting[static_cast<size_t>(i)].load(std::memory_order_acquire);
+    routing.source[i] = mRouting[static_cast<size_t>(i)].source.load(std::memory_order_acquire);
   return routing;
 }
 
@@ -193,7 +191,7 @@ void SergeMiddleCombined::ApplyRouting(const patch::Routing& routing)
     int8_t source = routing.source[i];
     if (source < -1 || source >= patch::kNumOutputs)
       source = -1;
-    mRouting[static_cast<size_t>(i)].store(source, std::memory_order_release);
+    mRouting[static_cast<size_t>(i)].source.store(source, std::memory_order_release);
   }
 }
 
@@ -288,6 +286,11 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
   const double in2Target = GetParam(kIn2)->Value();
   const double depth = GetParam(kVcDepth)->Value();
   const patch::Routing routing = RoutingSnapshot();
+  const int oscWave = GetParam(kOscWave)->Int();
+  const double oscFreq = GetParam(kOscFreq)->Value();
+  const double oscVolts = patch::OscVoltsFromDb(GetParam(kOscLevel)->Value());
+  const bool oscToIn1 = GetParam(kOscToIn1)->Bool();
+  const int hostOut = GetParam(kHostOut)->Int();
   const int nChans = std::min(NOutChansConnected(), kMaxChannels);
 
   patch::BlockMeter meter;
@@ -323,12 +326,21 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
     extra.arm2 = cycle2 && mArm2;
     extra.slope2Depth = GetParam(kSlopeVc2)->Value();
     extra.slope2Route = GetParam(kRoute2)->Int();
+    extra.oscWave = oscWave;
+    extra.oscFreq = oscFreq;
+    extra.oscVolts = oscVolts;
+    extra.oscToIn1 = oscToIn1;
     for (int c = 0; c < nChans; ++c)
     {
       const double host = static_cast<double>(inputs[c][s]);
       const double y = mChannels[c].Step(host, gate, gS, sS, depth, rise, fall, cycle, arm, routing,
                                          slopeDepth, route, extra);
-      outputs[c][s] = static_cast<sample>(y);
+      double heard = y;
+      if (hostOut == 1)
+        heard = mChannels[c].OutputVolts(patch::TopOut) / serge::kAudioFullScaleVolts;
+      else if (hostOut == 2)
+        heard = mChannels[c].OutputVolts(patch::BottomOut1) / serge::kAudioFullScaleVolts;
+      outputs[c][s] = static_cast<sample>(heard);
       if (c == 0)
       {
         for (int i = 0; i < patch::kNumInputs; ++i)
@@ -402,7 +414,7 @@ int SergeMiddleCombined::UnserializeState(const IByteChunk& chunk, int startPos)
   ApplyRouting(routing);
   if (GetUI() != nullptr)
   {
-    if (IControl* cables = GetUI()->GetControlWithTag(kCableTag))
+    if (IControl* cables = GetUI()->GetControlWithTag(patchview::kCableTag))
       cables->SetDirty(false);
     if (IControl* rate = GetUI()->GetControlWithTag(kRateTag))
       rate->SetDirty(false);

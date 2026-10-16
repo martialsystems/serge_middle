@@ -31,16 +31,30 @@ enum EParams
   kCycle2,
   kSlopeVc2,
   kRoute2,
+  kOscWave,
+  kOscFreq,
+  kOscLevel,
+  kOscToIn1,
+  kHostOut,
   kNumParams
 };
 
 using namespace iplug;
 using namespace igraphics;
 
+namespace patchview
+{
+struct FaceState;
+}
+
 class SergeMiddleCombined final : public Plugin
 {
 public:
   SergeMiddleCombined(const InstanceInfo& info);
+  ~SergeMiddleCombined();
+
+  // The starter patch: every section in one chain. See README.
+  static patch::Routing StarterRouting();
 
   patch::Routing RoutingSnapshot() const;
   void ApplyRouting(const patch::Routing& routing);
@@ -56,11 +70,15 @@ public:
 
 #if IPLUG_EDITOR
   void OnParamChangeUI(int paramIdx, EParamSource source) override;
+  void OnParentWindowResize(int width, int height) override;
+  // Hover text shared by the knobs and the readout rects. Owned here so a
+  // second instance does not see the first instance's hover.
+  patchview::FaceState* EditorFace();
 #endif
 
 private:
-  // A zero would cable PLEAT OUT into every input. The constructor stores -1.
-  std::array<std::atomic<int8_t>, patch::kNumInputs> mRouting;
+  // Born at -1. A zero would cable PLEAT OUT into every input.
+  std::array<patch::RoutingWord, patch::kNumInputs> mRouting{};
   std::array<std::atomic<float>, patch::kMeterCount> mMeterMin;
   std::array<std::atomic<float>, patch::kMeterCount> mMeterMax;
 
@@ -80,5 +98,10 @@ private:
   bool mArm = false;
   bool mCycle2 = false;
   bool mArm2 = false;
+#endif
+
+#if IPLUG_EDITOR
+  bool mFittingResize = false;
+  patchview::FaceState* mFace = nullptr;
 #endif
 };

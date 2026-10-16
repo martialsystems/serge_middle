@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 
 namespace vcm
 {
@@ -28,6 +30,39 @@ inline constexpr double kBottomOut = 4.0;
 inline constexpr double kSquareDrive = 8.0;
 inline constexpr double kAttackSeconds = 0.001;
 inline constexpr double kReleaseSeconds = 0.030;
+
+// Top Gain and Bottom Level are 0 at full CCW. The caption prints "0", not "0.000".
+inline void FormatUnit(double value, char* buf, std::size_t n)
+{
+  if (buf == nullptr || n == 0)
+    return;
+  if (!std::isfinite(value))
+    value = 0.0;
+  if (value < 0.0)
+    value = 0.0;
+  if (value > 1.0)
+    value = 1.0;
+  if (value < 0.0005)
+  {
+    std::snprintf(buf, n, "0");
+    return;
+  }
+  if (value > 0.9995)
+  {
+    std::snprintf(buf, n, "1");
+    return;
+  }
+  std::snprintf(buf, n, "%.2f", value);
+  char* dot = std::strchr(buf, '.');
+  if (dot == nullptr)
+    return;
+  char* end = buf + std::strlen(buf);
+  while (end > dot + 1 && end[-1] == '0')
+    --end;
+  if (end[-1] == '.')
+    --end;
+  *end = '\0';
+}
 
 inline double Clamp01(double value)
 {

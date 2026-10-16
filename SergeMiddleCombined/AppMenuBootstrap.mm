@@ -38,7 +38,7 @@ static SWELLAppController* gSMController = nil;
   if (gSMController) return;
   gSMController = [[NSClassFromString(@"SWELLAppController") alloc] init];
 
-  NSString* name = @"Serge Middle";
+  NSString* name = @"SLEWFOLD";
   NSMenu* mainMenu = [[NSMenu alloc] initWithTitle:@"MainMenu"];
   NSMenuItem* appItem = [[NSMenuItem alloc] initWithTitle:name action:nil keyEquivalent:@""];
   NSMenu* appMenu = [[NSMenu alloc] initWithTitle:name];
