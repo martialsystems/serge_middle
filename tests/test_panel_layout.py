@@ -41,13 +41,14 @@ class PanelLayoutTest(unittest.TestCase):
     def test_spots_match_the_editor(self) -> None:
         face = load_face()
         view = (ROOT / "SergeMiddleCombined" / "PatchView.h").read_text(encoding="utf-8")
+        ends = (ROOT / "SergeMiddleCombined" / "CableEnds.h").read_text(encoding="utf-8")
         for jack in face.layout()["jacks"]:
             role = "true" if jack["output"] else "false"
             token = (
                 f'"{jack["key"]}", {role}, patch::{jack["enum"]}, '
                 f'{jack["x"]}.f, {jack["y"]}.f, "{jack["label"]}", {jack["cloth"]}'
             )
-            self.assertIn(token, view, jack["key"])
+            self.assertIn(token, ends, jack["key"])
         for knob in face.layout()["knobs"]:
             rx, ry, rw, rh = knob["readout"]
             token = (
@@ -96,6 +97,28 @@ class PanelLayoutTest(unittest.TestCase):
         self.assertNotIn('id="switch_slope1_cycle"', clean)
         self.assertIn("readout", clean)
         self.assertIn("jack_top_in", clean)
+
+    def test_section_titles_and_legend(self) -> None:
+        text = (ROOT / "SergeMiddleCombined" / "resources" / "slewfold_v6.svg").read_text(encoding="utf-8")
+        for title in (
+            "VCA / SQUARE-UP",
+            "PLEAT WAVEFOLDER",
+            "RECTIFIER",
+            ">SLOPE 1<",
+            ">SLOPE 2<",
+        ):
+            self.assertIn(title, text)
+        self.assertNotIn("VCM TOP", text)
+        self.assertNotIn("DUAL UNIVERSAL", text)
+        self.assertNotIn("\u2014", text)
+        self.assertNotIn("\u2013", text)
+        self.assertIn(".lg{font-size:18px", text)
+        self.assertIn(".n{font-size:17px", text)
+        self.assertIn('class="lg">BLACK  bipolar audio', text)
+        self.assertIn('class="lg">normalled connection', text)
+        self.assertEqual(text.count('class="n">END → TRIG (CYCLE)</text>'), 2)
+        self.assertIn('class="n">SLOPE 1 → VC</text>', text)
+        self.assertIn('class="s">AC</text>', text)
 
     def test_bitmaps(self) -> None:
         from PIL import Image

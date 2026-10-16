@@ -4,7 +4,7 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 
 Centres for jacks, knobs, and switches are ids_v6.json. Knob data-angle,
 readout rects, and LED centres are the same ids in slewfold_v6.svg. The
-editor's PatchView.h repeats this table. tests/test_panel_layout.py checks
+editor's CableEnds.h repeats the jack table. tests/test_panel_layout.py checks
 the two copies.
 """
 

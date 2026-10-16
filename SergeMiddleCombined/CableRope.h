@@ -58,6 +58,13 @@ public:
   // Pin the ends. The first call lays the rope and settles it.
   void attach(Vec a, Vec b, const RopeScene& scene)
   {
+    // A rope that was laid at another anchor, including the origin, is laid
+    // again. Leaving the old nodes in place paints a cable that does not end
+    // on the jacks.
+    const bool moved = mInit && (std::fabs(mA.x - a.x) > 0.5f || std::fabs(mA.y - a.y) > 0.5f ||
+                                 std::fabs(mB.x - b.x) > 0.5f || std::fabs(mB.y - b.y) > 0.5f);
+    if (moved)
+      reset();
     mA = a;
     mB = b;
     const float d = std::hypot(b.x - a.x, b.y - a.y);

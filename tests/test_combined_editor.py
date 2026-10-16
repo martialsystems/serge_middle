@@ -39,18 +39,24 @@ class CombinedEditorTest(unittest.TestCase):
         config = (PLUGIN / "config.h").read_text(encoding="utf-8")
         self.assertIn('#define PLUG_NAME "SLEWFOLD"', config)
         self.assertIn('#define BUNDLE_NAME "SergeMiddleCombined"', config)
-        self.assertIn("#define PLUG_WIDTH 1600", config)
-        self.assertIn("#define PLUG_HEIGHT 960", config)
+        self.assertIn("#define PLUG_WIDTH 1440", config)
+        self.assertIn("#define PLUG_HEIGHT 864", config)
         self.assertIn("#define PLUG_HOST_RESIZE 1", config)
         self.assertIn("#define PLUG_MIN_WIDTH 1200", config)
         self.assertIn("#define PLUG_MIN_HEIGHT 720", config)
-        self.assertLessEqual(1600, 1920)
-        self.assertLessEqual(960, 1040)
+        self.assertIn("#define PLUG_MAX_WIDTH 2400", config)
+        self.assertIn("#define PLUG_MAX_HEIGHT 1440", config)
+        self.assertLessEqual(1440, 1920)
+        self.assertLessEqual(864, 1000)
         self.assertLessEqual(1200, 1280)
         self.assertLessEqual(720, 800)
         self.assertIn("#define PLUG_DOES_MIDI_IN 1", config)
         self.assertIn("#define PLUG_DOES_STATE_CHUNKS 1", config)
         self.assertIn("#define PLUG_UNIQUE_ID 'SmCb'", config)
+        header = (PLUGIN / "SergeMiddleCombined.h").read_text(encoding="utf-8")
+        patch_h = (PLUGIN / "dsp" / "Patch.h").read_text(encoding="utf-8")
+        self.assertIn("std::atomic<int8_t> source{-1}", patch_h)
+        self.assertIn("std::array<patch::RoutingWord, patch::kNumInputs> mRouting{}", header)
         self.assertIn("#define PLUG_MFR_ID 'Mrsy'", config)
         self.assertNotIn("'Smid'", config)
         self.assertNotIn("'SlAC'", config)
@@ -114,7 +120,9 @@ class CombinedEditorTest(unittest.TestCase):
         self.assertIn("chunk.Size() - pos >= patch::kRoutingBytes", source)
         self.assertIn("SetDisplayFunc(ShowUnit)", source)
         self.assertIn("AttachCornerResizer(EUIResizerMode::Scale", source)
-        self.assertIn("SetScaleConstraints(0.75f, 1.5f)", source)
+        self.assertIn("static_cast<float>(PLUG_MIN_WIDTH) / static_cast<float>(PLUG_WIDTH)", source)
+        self.assertIn("static_cast<float>(PLUG_MAX_WIDTH) / static_cast<float>(PLUG_WIDTH)", source)
+        self.assertNotIn("SetScaleConstraints(0.75f, 1.5f)", source)
         self.assertIn("vcm::FormatUnit", source)
         self.assertIn('InitDouble("Top Gain", 0.0', source)
         self.assertIn('InitDouble("Bottom Level", 0.0', source)
@@ -135,6 +143,7 @@ class CombinedEditorTest(unittest.TestCase):
             "../SergeMiddle/resources/fonts/Roboto-Regular.ttf",
             "FORMATS VST3",
             "CableRope.h",
+            "CableEnds.h",
         ):
             self.assertIn(name, cmake)
         self.assertNotIn("middle_plate.png", cmake)
@@ -151,6 +160,7 @@ class CombinedEditorTest(unittest.TestCase):
             PLUGIN / "dsp" / "Patch.h",
             PLUGIN / "config.h",
             PLUGIN / "CableRope.h",
+            PLUGIN / "CableEnds.h",
             ROOT / "BUILD.md",
             ROOT / "README.md",
             ROOT / "tools" / "art" / "slewfold_face.py",

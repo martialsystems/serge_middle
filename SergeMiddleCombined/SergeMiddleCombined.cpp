@@ -48,7 +48,7 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
   for (auto& slot : mRouting)
-    slot.store(-1, std::memory_order_relaxed);
+    slot.source.store(-1, std::memory_order_relaxed);
   for (auto& meter : mMeterMin)
     meter.store(0.f, std::memory_order_relaxed);
   for (auto& meter : mMeterMax)
@@ -90,10 +90,11 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    // Scale keeps the plate aspect. 0.75 is 1200 by 720, which fits 1280 by 800.
-    // 1.5 is 2400 by 1440. The default 1600 by 960 fits 1920 by 1080.
+    // Scale keeps the plate aspect. The minimum is 1200 by 720. The maximum
+    // is 2400 by 1440. The default 1440 by 864 fits 1920 by 1080 with the Dock.
     pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false, IColor(210, 26, 24, 22));
-    pGraphics->SetScaleConstraints(0.75f, 1.5f);
+    pGraphics->SetScaleConstraints(static_cast<float>(PLUG_MIN_WIDTH) / static_cast<float>(PLUG_WIDTH),
+                                   static_cast<float>(PLUG_MAX_WIDTH) / static_cast<float>(PLUG_WIDTH));
     pGraphics->EnableMouseOver(true);
     pGraphics->AttachPanelBackground(IColor(255, 244, 239, 228));
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
@@ -153,7 +154,7 @@ patch::Routing SergeMiddleCombined::RoutingSnapshot() const
 {
   patch::Routing routing;
   for (int i = 0; i < patch::kNumInputs; ++i)
-    routing.source[i] = mRouting[static_cast<size_t>(i)].load(std::memory_order_acquire);
+    routing.source[i] = mRouting[static_cast<size_t>(i)].source.load(std::memory_order_acquire);
   return routing;
 }
 
@@ -164,7 +165,7 @@ void SergeMiddleCombined::ApplyRouting(const patch::Routing& routing)
     int8_t source = routing.source[i];
     if (source < -1 || source >= patch::kNumOutputs)
       source = -1;
-    mRouting[static_cast<size_t>(i)].store(source, std::memory_order_release);
+    mRouting[static_cast<size_t>(i)].source.store(source, std::memory_order_release);
   }
 }
 

@@ -54,6 +54,17 @@ int main()
     return 1;
   if (Drop({90.f, 625.f}, {1510.f, 825.f}, 100.f))
     return 1;
+  // A rope laid at the origin must follow a later pair of jack pins.
+  slewfold::Rope moved;
+  slewfold::RopeScene scene;
+  scene.floor = 1.0e9f;
+  moved.attach({0.f, 0.f}, {0.f, 0.f}, scene);
+  moved.attach({600.f, 309.f}, {1000.f, 309.f}, scene);
+  const slewfold::Vec head = moved.at(0);
+  const slewfold::Vec tail = moved.at(slewfold::Rope::N - 1);
+  if (std::fabs(head.x - 600.f) > 0.5f || std::fabs(head.y - 309.f) > 0.5f || std::fabs(tail.x - 1000.f) > 0.5f ||
+      std::fabs(tail.y - 309.f) > 0.5f)
+    return Fail("stale anchor");
   std::puts("cable rope ok");
   return 0;
 }

@@ -12,6 +12,7 @@
 #include "../../SlopeAC/dsp/AcCoupler.h"
 #include "WaveEnds.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -88,6 +89,14 @@ inline int MeterOf(bool output, int index)
 {
   return output ? kNumInputs + index : index;
 }
+
+// Output 0 is PLEAT OUT. A default std::atomic<int8_t> is 0, and a fresh page
+// is 0, so an uninitialized routing word draws that cable. The word is born
+// unpatched.
+struct RoutingWord
+{
+  std::atomic<int8_t> source{-1};
+};
 
 // One output per input. -1 is unpatched. A new cable replaces the old one.
 struct Routing

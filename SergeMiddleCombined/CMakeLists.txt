@@ -17,6 +17,7 @@ iplug_add_plugin(${PROJECT_NAME}
     SergeMiddleCombined.h
     PatchView.h
     CableRope.h
+    CableEnds.h
     dsp/Patch.h
     AppMenuBootstrap.mm
   RESOURCES

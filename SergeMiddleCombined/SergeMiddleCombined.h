@@ -69,8 +69,8 @@ public:
 #endif
 
 private:
-  // A zero would cable PLEAT OUT into every input. The constructor stores -1.
-  std::array<std::atomic<int8_t>, patch::kNumInputs> mRouting;
+  // Born at -1. A zero would cable PLEAT OUT into every input.
+  std::array<patch::RoutingWord, patch::kNumInputs> mRouting{};
   std::array<std::atomic<float>, patch::kMeterCount> mMeterMin;
   std::array<std::atomic<float>, patch::kMeterCount> mMeterMax;
 

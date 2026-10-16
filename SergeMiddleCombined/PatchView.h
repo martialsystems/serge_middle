@@ -18,6 +18,7 @@
 
 #include "SergeMiddleCombined.h"
 #include "CableRope.h"
+#include "CableEnds.h"
 
 #include <algorithm>
 #include <cmath>
@@ -43,19 +44,13 @@ inline constexpr float kSwitchHit = 44.f;
 inline constexpr float kDesignW = 1600.f;
 inline constexpr float kDesignH = 960.f;
 inline constexpr float kStackStep = 6.f;
+static_assert(kStackStep == slewfold::kStackStep, "stack step");
 inline constexpr int kFilmFrames = 64;
 static_assert(kJackHit >= 28.f, "jack hit target");
 
-struct JackSpot
-{
-  const char* id;
-  bool output;
-  int index;
-  float x;
-  float y;
-  const char* label;
-  int cloth;
-};
+using slewfold::JackSpot;
+using slewfold::kJackCount;
+using slewfold::kJacks;
 
 struct KnobSpot
 {
@@ -88,34 +83,7 @@ struct LedSpot
   float y;
 };
 
-// Centres from tools/art/ids_v6.json. Cloth is Lift's CLOTH index: 1 red gate,
-// 4 cream audio. Inputs do not colour a cable.
-inline constexpr int kJackCount = 23;
-inline constexpr JackSpot kJacks[kJackCount] = {
-    {"jack_top_in", false, patch::TopIn, 80.f, 220.f, "TOP IN", 0},
-    {"jack_top_vc", false, patch::TopVc, 80.f, 390.f, "TOP VC", 0},
-    {"jack_top_out", true, patch::TopOut, 480.f, 305.f, "TOP OUT", 4},
-    {"jack_pleat_in1", false, patch::PleatIn1, 600.f, 190.f, "PLEAT IN 1", 0},
-    {"jack_pleat_in2", false, patch::PleatIn2, 600.f, 305.f, "PLEAT IN 2", 0},
-    {"jack_pleat_vc", false, patch::PleatVc, 600.f, 420.f, "PLEAT VC", 0},
-    {"jack_pleat_out", true, patch::PleatOut, 1000.f, 305.f, "PLEAT OUT", 4},
-    {"jack_bottom_in", false, patch::BottomIn, 1120.f, 220.f, "BOTTOM IN", 0},
-    {"jack_bottom_vc", false, patch::BottomVc, 1120.f, 390.f, "BOTTOM VC", 0},
-    {"jack_bottom_out1", true, patch::BottomOut1, 1520.f, 220.f, "BOTTOM OUT 1", 4},
-    {"jack_bottom_out2", true, patch::BottomOut2, 1520.f, 390.f, "BOTTOM OUT 2", 4},
-    {"jack_slope1_in", false, patch::SlopeIn, 90.f, 625.f, "SLOPE IN", 0},
-    {"jack_slope1_trig", false, patch::SlopeTrig, 90.f, 725.f, "SLOPE TRIG", 0},
-    {"jack_slope1_vc", false, patch::SlopeVc, 90.f, 825.f, "SLOPE VC", 0},
-    {"jack_slope1_out", true, patch::SlopeOut, 730.f, 625.f, "SLOPE OUT", 4},
-    {"jack_slope1_ac", true, patch::SlopeAc, 730.f, 725.f, "SLOPE AC", 4},
-    {"jack_slope1_end", true, patch::SlopeEnd, 730.f, 825.f, "SLOPE END", 1},
-    {"jack_slope2_in", false, patch::Slope2In, 870.f, 625.f, "SLOPE 2 IN", 0},
-    {"jack_slope2_trig", false, patch::Slope2Trig, 870.f, 725.f, "SLOPE 2 TRIG", 0},
-    {"jack_slope2_vc", false, patch::Slope2Vc, 870.f, 825.f, "SLOPE 2 VC", 0},
-    {"jack_slope2_out", true, patch::Slope2Out, 1510.f, 625.f, "SLOPE 2 OUT", 4},
-    {"jack_slope2_ac", true, patch::Slope2Ac, 1510.f, 725.f, "SLOPE 2 AC", 4},
-    {"jack_slope2_end", true, patch::Slope2End, 1510.f, 825.f, "SLOPE 2 END", 1},
-};
+// Jack centres live in CableEnds.h, the same list as tools/art/ids_v6.json.
 
 inline constexpr int kKnobCount = 12;
 inline constexpr KnobSpot kKnobs[kKnobCount] = {
@@ -237,22 +205,25 @@ inline gfx::IStrokeOptions RoundStroke()
   return opt;
 }
 
-inline void PathRope(gfx::IGraphics& g, const slewfold::Vec* p, float ox, float oy)
+inline void PathRope(gfx::IGraphics& g, const slewfold::Vec* p, int n, float ox, float oy)
 {
+  if (n < 2)
+    return;
   g.PathClear();
   g.PathMoveTo(p[0].x + ox, p[0].y + oy);
-  for (int i = 1; i < slewfold::Rope::N - 1; ++i)
+  for (int i = 1; i < n - 1; ++i)
   {
     const float mx = 0.5f * (p[i].x + p[i + 1].x) + ox;
     const float my = 0.5f * (p[i].y + p[i + 1].y) + oy;
     g.PathQuadraticBezierTo(p[i].x + ox, p[i].y + oy, mx, my);
   }
-  g.PathLineTo(p[slewfold::Rope::N - 1].x + ox, p[slewfold::Rope::N - 1].y + oy);
+  g.PathLineTo(p[n - 1].x + ox, p[n - 1].y + oy);
 }
 
-inline void StrokeRope(gfx::IGraphics& g, const slewfold::Vec* p, gfx::IColor color, float width, float ox, float oy)
+inline void StrokeRope(gfx::IGraphics& g, const slewfold::Vec* p, int n, gfx::IColor color, float width, float ox,
+                       float oy)
 {
-  PathRope(g, p, ox, oy);
+  PathRope(g, p, n, ox, oy);
   g.PathStroke(color, width, RoundStroke());
 }
 
@@ -337,12 +308,12 @@ inline void DrawLiftCable(gfx::IGraphics& g, const slewfold::Vec* p, int n, floa
   const float shadowA[3] = {0.07f, 0.10f, 0.14f};
   const float shadowW[3] = {22.f, 16.f, 11.f};
   for (int i = 0; i < 3; ++i)
-    StrokeRope(g, p, Ink(RgbA(0x1e1406u, shadowA[i]), aside), shadowW[i], 5.f, 15.f);
-  StrokeRope(g, p, Ink(Rgb(cloth.c), aside), 8.5f, 0.f, 0.f);
+    StrokeRope(g, p, n, Ink(RgbA(0x1e1406u, shadowA[i]), aside), shadowW[i], 5.f, 15.f);
+  StrokeRope(g, p, n, Ink(Rgb(cloth.c), aside), 8.5f, 0.f, 0.f);
   DashRope(g, p, n, Ink(RgbA(cloth.dk, 0.75f), aside), 8.5f, 1.7f, 1.5f, 0.f, 0.f);
   DashRope(g, p, n, Ink(RgbA(cloth.lt, 0.6f), aside), 4.5f, 1.f, 2.2f, 0.f, 0.f);
-  StrokeRope(g, p, Ink(RgbA(0x000000u, 0.35f), aside), 1.5f, 1.6f, 2.4f);
-  StrokeRope(g, p, Ink(RgbA(0xffffffu, 0.14f), aside), 2.f, -1.4f, -2.f);
+  StrokeRope(g, p, n, Ink(RgbA(0x000000u, 0.35f), aside), 1.5f, 1.6f, 2.4f);
+  StrokeRope(g, p, n, Ink(RgbA(0xffffffu, 0.14f), aside), 2.f, -1.4f, -2.f);
   // Lift paints the same cap on both ends of one cable.
   DrawPlug(g, x1, y1, cloth, open, aside);
   DrawPlug(g, x2, y2, cloth, open, aside);
@@ -864,23 +835,34 @@ public:
       float y0 = 0.f;
       float x1 = 0.f;
       float y1 = 0.f;
-      PlugEnds(routing, source, input, -1, x0, y0, x1, y1);
-      // The rope starts 4 px under the plug, as in Lift cordEnds / ropeFor.
-      // A stack change moves a plug. Wake the rope so the end follows.
-      if (mRope[input].valid())
+      // No span unless both ends are jack centres. A miss used to leave 0,0
+      // and still stroke the rope.
+      if (!PlugEnds(routing, source, input, x0, y0, x1, y1))
       {
-        const slewfold::Vec head = mRope[input].at(0);
-        const slewfold::Vec tail = mRope[input].at(slewfold::Rope::N - 1);
-        const float dy0 = head.y - (y0 + 4.f);
-        const float dy1 = tail.y - (y1 + 4.f);
-        if (std::fabs(head.x - x0) > 0.5f || std::fabs(dy0) > 0.5f || std::fabs(tail.x - x1) > 0.5f ||
+        mRope[input].reset();
+        continue;
+      }
+      // The rope starts 4 px under the plug, as in Lift cordEnds / ropeFor.
+      const bool was = mRope[input].valid();
+      slewfold::Vec oldHead;
+      slewfold::Vec oldTail;
+      if (was)
+      {
+        oldHead = mRope[input].at(0);
+        oldTail = mRope[input].at(slewfold::Rope::N - 1);
+      }
+      mRope[input].attach({x0, y0 + 4.f}, {x1, y1 + 4.f}, scene);
+      if (was)
+      {
+        const float dy0 = oldHead.y - (y0 + 4.f);
+        const float dy1 = oldTail.y - (y1 + 4.f);
+        if (std::fabs(oldHead.x - x0) > 0.5f || std::fabs(dy0) > 0.5f || std::fabs(oldTail.x - x1) > 0.5f ||
             std::fabs(dy1) > 0.5f)
         {
           mAwake = true;
           mIdle = 0;
         }
       }
-      mRope[input].attach({x0, y0 + 4.f}, {x1, y1 + 4.f}, scene);
     }
 
     if (mKickInput >= 0 && mKickInput < patch::kNumInputs && mRope[mKickInput].valid())
@@ -932,12 +914,19 @@ public:
         continue;
       if (mMove && mDragging && input == mMoveInput)
         continue;
-      const int level = seen[source]++;
       float x0 = 0.f;
       float y0 = 0.f;
       float x1 = 0.f;
       float y1 = 0.f;
-      PlugEnds(routing, source, input, -1, x0, y0, x1, y1);
+      if (!PlugEnds(routing, source, input, x0, y0, x1, y1))
+        continue;
+      const slewfold::Vec head = mRope[input].at(0);
+      const slewfold::Vec tail = mRope[input].at(slewfold::Rope::N - 1);
+      // Do not stroke a rope whose nodes are still on a stale anchor.
+      if (std::fabs(head.x - x0) > 0.5f || std::fabs(head.y - (y0 + 4.f)) > 0.5f || std::fabs(tail.x - x1) > 0.5f ||
+          std::fabs(tail.y - (y1 + 4.f)) > 0.5f)
+        continue;
+      const int level = seen[source]++;
       slewfold::Vec pts[slewfold::Rope::N];
       for (int i = 0; i < slewfold::Rope::N; ++i)
         pts[i] = mRope[input].at(i);
@@ -1036,24 +1025,19 @@ private:
     return 4;
   }
 
-  // Output plug steps up by Lift's 6 px per extra cable. The input has one plug.
-  void PlugEnds(const patch::Routing& routing, int output, int input, int except, float& x0, float& y0, float& x1,
+  // Output plug steps up by Lift's 6 design px per extra cable. The input has one plug.
+  // False leaves the caller's coordinates alone and means "do not draw".
+  bool PlugEnds(const patch::Routing& routing, int output, int input, float& x0, float& y0, float& x1,
                 float& y1) const
   {
-    FindCentre(true, output, x0, y0);
-    FindCentre(false, input, x1, y1);
-    int level = 0;
-    for (int i = 0; i < patch::kNumInputs; ++i)
-    {
-      if (i == except)
-        continue;
-      if (routing.source[i] != output)
-        continue;
-      if (i == input)
-        break;
-      ++level;
-    }
-    y0 -= kStackStep * Scale() * static_cast<float>(level);
+    slewfold::CableEnd end;
+    if (!slewfold::ResolveCable(routing, input, end) || end.output != output)
+      return false;
+    x0 = ToX(end.x0);
+    y0 = ToY(end.y0);
+    x1 = ToX(end.x1);
+    y1 = ToY(end.y1);
+    return true;
   }
 
   bool NearRope(float x, float y) const
@@ -1123,7 +1107,8 @@ private:
         float unusedX = 0.f;
         float unusedY = 0.f;
         // Keep this cable in the stack count so the plug stays on its own step.
-        PlugEnds(routing, source, mMoveInput, -1, x0, y0, unusedX, unusedY);
+        if (!PlugEnds(routing, source, mMoveInput, x0, y0, unusedX, unusedY))
+          return;
         cloth = ClothOf(source);
       }
       else

@@ -27,10 +27,12 @@
 #define PLUG_DOES_STATE_CHUNKS 1
 #define PLUG_HAS_UI 1
 // 1600 by 960 is slewfold_plate.png, the hand-drawn face. @2x is 3200 by 1920.
-// Default fits a 1920 by 1080 screen. The minimum window is 1200 by 720,
-// which fits a 1280 by 800 screen. Scale mode keeps the aspect.
-#define PLUG_WIDTH 1600
-#define PLUG_HEIGHT 960
+// The window default is 1440 by 864 so a 1920 by 1080 screen still has room
+// for the menu bar and the Dock. The minimum is 1200 by 720, which fits a
+// 1280 by 800 screen. The maximum is 2400 by 1440. Scale mode keeps the
+// aspect. Spots stay in the 1600 by 960 design space.
+#define PLUG_WIDTH 1440
+#define PLUG_HEIGHT 864
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 #define PLUG_HOST_RESIZE 1
