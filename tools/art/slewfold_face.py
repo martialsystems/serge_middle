@@ -15,6 +15,8 @@ PLATE_H = 960
 MIN_LABEL = 12
 JACK_R = 16.5
 KNOB_D = 72
+# The test oscillator knobs in the title band are smaller.
+OSC_KNOB_D = 56
 SWITCH_HIT = 44
 
 # id, output, patch enum, x, y, hover label, jack colour, Lift cloth for outputs
@@ -42,6 +44,7 @@ JACKS = [
     ("jack_slope2_out", True, "Slope2Out", 1510, 625, "SLOPE 2 OUT", "black", 4),
     ("jack_slope2_ac", True, "Slope2Ac", 1510, 725, "SLOPE 2 AC", "black", 4),
     ("jack_slope2_end", True, "Slope2End", 1510, 825, "SLOPE 2 END", "red", 1),
+    ("jack_osc_out", True, "OscOut", 440, 66, "TEST OSC OUT", "black", 0),
 ]
 
 # id, param, cx, cy, data-angle, readout x, y, w, h
@@ -58,6 +61,8 @@ KNOBS = [
     ("knob_slope2_rise", "kRise2", 1100, 625, -29, 1073, 654, 54, 19),
     ("knob_slope2_fall", "kFall2", 1240, 625, -46, 1213, 654, 54, 19),
     ("knob_slope2_vc_depth", "kSlopeVc2", 1100, 825, 49, 1073, 854, 54, 19),
+    ("knob_osc_freq", "kOscFreq", 190, 66, 0, 222, 57, 54, 19),
+    ("knob_osc_level", "kOscLevel", 320, 66, 0, 352, 57, 54, 19),
 ]
 
 # id, param or "" when the lever is not a parameter, x, y
@@ -68,6 +73,8 @@ SWITCHES = [
     ("switch_slope1_vc_target", "kRoute", 550, 825),
     ("switch_slope2_cycle", "kCycle2", 1240, 735),
     ("switch_slope2_vc_target", "kRoute2", 1330, 825),
+    ("switch_osc_wave", "kOscWave", 70, 66),
+    ("switch_osc_to_in1", "kOscToIn1", 530, 66),
 ]
 
 # id, "end" or "cycle", meter output enum, cycle param or "", x, y
@@ -101,8 +108,8 @@ def layout():
             "x": x,
             "y": y,
             "angle": angle,
-            "d": KNOB_D,
-            "r": KNOB_D / 2,
+            "d": OSC_KNOB_D if name.startswith("knob_osc") else KNOB_D,
+            "r": (OSC_KNOB_D if name.startswith("knob_osc") else KNOB_D) / 2,
             "readout": (rx, ry, rw, rh),
         }
         for name, param, x, y, angle, rx, ry, rw, rh in KNOBS

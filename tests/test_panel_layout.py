@@ -33,9 +33,9 @@ class PanelLayoutTest(unittest.TestCase):
         self.assertLessEqual(1200, 1280)
         self.assertLessEqual(720, 800)
         self.assertGreaterEqual(lay["min_label"], 12)
-        self.assertEqual(len(lay["jacks"]), 23)
-        self.assertEqual(len(lay["knobs"]), 12)
-        self.assertEqual(len(lay["switches"]), 6)
+        self.assertEqual(len(lay["jacks"]), 24)
+        self.assertEqual(len(lay["knobs"]), 14)
+        self.assertEqual(len(lay["switches"]), 8)
         self.assertEqual(len(lay["leds"]), 4)
 
     def test_spots_match_the_editor(self) -> None:

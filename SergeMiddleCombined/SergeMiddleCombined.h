@@ -31,6 +31,10 @@ enum EParams
   kCycle2,
   kSlopeVc2,
   kRoute2,
+  kOscWave,
+  kOscFreq,
+  kOscLevel,
+  kOscToIn1,
   kNumParams
 };
 
@@ -47,6 +51,9 @@ class SergeMiddleCombined final : public Plugin
 public:
   SergeMiddleCombined(const InstanceInfo& info);
   ~SergeMiddleCombined();
+
+  // The starter patch: test osc into PLEAT IN 1, Slope 1 OUT into PLEAT VC.
+  static patch::Routing StarterRouting();
 
   patch::Routing RoutingSnapshot() const;
   void ApplyRouting(const patch::Routing& routing);

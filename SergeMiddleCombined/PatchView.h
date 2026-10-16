@@ -12,8 +12,8 @@
 //
 // Cables are Lift's (martialsystems/lift, branch tape-engine-juce), drawn with
 // IGraphics. See CableRope.h. An output can feed several inputs. An input
-// holds one cable: the patch model does not sum. Alt-drag on an occupied
-// output starts another cable. A plain drag lifts the top plug. The routing
+// holds one cable: the patch model does not sum. A drag from an occupied
+// output starts another cable. Drag an input plug to move it. The routing
 // bytes are unchanged, so an older project still loads.
 
 #include "SergeMiddleCombined.h"
@@ -63,6 +63,8 @@ struct KnobSpot
   float ry;
   float rw;
   float rh;
+  // Diameter in design px. The test oscillator knobs are smaller.
+  float d = kKnobD;
 };
 
 struct SwitchSpot
@@ -85,7 +87,7 @@ struct LedSpot
 
 // Jack centres live in CableEnds.h, the same list as tools/art/ids_v6.json.
 
-inline constexpr int kKnobCount = 12;
+inline constexpr int kKnobCount = 14;
 inline constexpr KnobSpot kKnobs[kKnobCount] = {
     {"knob_top_gain", kTopGain, 270.f, 220.f, 42.f, 243.f, 249.f, 54.f, 19.f},
     {"knob_fold", kFold, 770.f, 190.f, -50.f, 743.f, 219.f, 54.f, 19.f},
@@ -99,9 +101,11 @@ inline constexpr KnobSpot kKnobs[kKnobCount] = {
     {"knob_slope2_rise", kRise2, 1100.f, 625.f, -29.f, 1073.f, 654.f, 54.f, 19.f},
     {"knob_slope2_fall", kFall2, 1240.f, 625.f, -46.f, 1213.f, 654.f, 54.f, 19.f},
     {"knob_slope2_vc_depth", kSlopeVc2, 1100.f, 825.f, 49.f, 1073.f, 854.f, 54.f, 19.f},
+    {"knob_osc_freq", kOscFreq, 190.f, 66.f, 0.f, 222.f, 57.f, 54.f, 19.f, 56.f},
+    {"knob_osc_level", kOscLevel, 320.f, 66.f, 0.f, 352.f, 57.f, 54.f, 19.f, 56.f},
 };
 
-inline constexpr int kSwitchCount = 6;
+inline constexpr int kSwitchCount = 8;
 inline constexpr SwitchSpot kSwitches[kSwitchCount] = {
     {"switch_top_couple", -1, 230.f, 390.f},
     {"switch_top_mode", kTopHi, 340.f, 390.f},
@@ -109,6 +113,8 @@ inline constexpr SwitchSpot kSwitches[kSwitchCount] = {
     {"switch_slope1_vc_target", kRoute, 550.f, 825.f},
     {"switch_slope2_cycle", kCycle2, 1240.f, 735.f},
     {"switch_slope2_vc_target", kRoute2, 1330.f, 825.f},
+    {"switch_osc_wave", kOscWave, 70.f, 66.f},
+    {"switch_osc_to_in1", kOscToIn1, 530.f, 66.f},
 };
 
 inline constexpr int kLedCount = 4;
@@ -348,7 +354,8 @@ public:
   {
     const float dx = x - mRECT.MW();
     const float dy = y - mRECT.MH();
-    return dx * dx + dy * dy <= (0.5f * kKnobD) * (0.5f * kKnobD);
+    const float r = 0.5f * mRECT.W();
+    return dx * dx + dy * dy <= r * r;
   }
 
   bool IsDirty() override
@@ -372,11 +379,19 @@ public:
     SetDirty(false);
   }
 
+  // Right-click puts the knob back at its default. Double-click does the same (IControl).
   void OnMouseDown(float x, float y, const gfx::IMouseMod& mod) override
   {
+    if (mod.R)
+    {
+      SetValueToDefault();
+      return;
+    }
     gfx::IKnobControlBase::OnMouseDown(x, y, mod);
     SetDirty(false);
   }
+
+  void OnMouseDblClick(float, float, const gfx::IMouseMod&) override { SetValueToDefault(); }
 
   void Draw(gfx::IGraphics& g) override
   {
@@ -455,6 +470,7 @@ private:
 
 // Bool lever: up is off (LO, CYCLE off). Down is on.
 // Route lever: up RISE, right BOTH, down FALL. Default BOTH points at the label.
+// The osc wave lever uses the same three positions: up SINE, right SAW, down SQR.
 class Lever final : public gfx::IControl
 {
 public:
@@ -608,7 +624,7 @@ public:
       return false;
     for (int i = 0; i < kKnobCount; ++i)
     {
-      const gfx::IRECT box = Spot(mRECT, kKnobs[i].x, kKnobs[i].y, kKnobD, kKnobD);
+      const gfx::IRECT box = Spot(mRECT, kKnobs[i].x, kKnobs[i].y, kKnobs[i].d, kKnobs[i].d);
       if (box.Contains(x, y))
         return false;
     }
@@ -682,8 +698,10 @@ public:
     mX = x;
     mY = y;
     mSpeed = 0.f;
-    // Alt-drag stacks on an output. An input cannot take a second cable.
-    const bool stack = mod.A && spot.output && occupied > 0;
+    // A drag from an output always starts a new cable, so cables stack like
+    // Serge banana plugs. To move or unplug a cable, drag its input end.
+    // An input cannot take a second cable.
+    const bool stack = spot.output && occupied > 0;
     if (occupied > 0 && !stack)
     {
       mMove = true;
@@ -1145,11 +1163,15 @@ private:
       hi = swap;
     }
     const bool normal = !jack.output && routing.source[jack.index] < 0;
-    char buf[96];
+    char buf[160];
+    const char* hint = jack.output ? "  (drag to patch, more cables stack)" : "";
+    if (!jack.output && routing.source[jack.index] >= 0)
+      hint = "  (drag plug to move or unplug)";
     if (hi - lo > 0.05f)
-      std::snprintf(buf, sizeof buf, "%s%s  %+.2f .. %+.2f V", jack.label, normal ? " (normal)" : "", lo, hi);
+      std::snprintf(buf, sizeof buf, "%s%s  %+.2f .. %+.2f V%s", jack.label, normal ? " (normal)" : "", lo, hi, hint);
     else
-      std::snprintf(buf, sizeof buf, "%s%s  %+.2f V", jack.label, normal ? " (normal)" : "", 0.5f * (lo + hi));
+      std::snprintf(buf, sizeof buf, "%s%s  %+.2f V%s", jack.label, normal ? " (normal)" : "", 0.5f * (lo + hi),
+                    hint);
 
     gfx::IRECT measured;
     g.MeasureText(mText, buf, measured);
@@ -1194,12 +1216,12 @@ inline void AttachFace(gfx::IGraphics* g, SergeMiddleCombined& plug)
     if (sw.param < 0)
       g->AttachControl(new CoupleHit(box));
     else
-      g->AttachControl(new Lever(box, sw.param, sw.param == kRoute || sw.param == kRoute2));
+      g->AttachControl(new Lever(box, sw.param, sw.param == kRoute || sw.param == kRoute2 || sw.param == kOscWave));
   }
   for (int i = 0; i < kKnobCount; ++i)
   {
     const KnobSpot& knob = kKnobs[i];
-    g->AttachControl(new FilmKnob(Spot(bounds, knob.x, knob.y, kKnobD, kKnobD), knob.param, film, i, face));
+    g->AttachControl(new FilmKnob(Spot(bounds, knob.x, knob.y, knob.d, knob.d), knob.param, film, i, face));
   }
   g->AttachControl(new CableControl(bounds, plug, face), kCableTag);
   for (int i = 0; i < kKnobCount; ++i)

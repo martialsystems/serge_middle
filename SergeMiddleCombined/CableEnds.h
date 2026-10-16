@@ -26,7 +26,7 @@ struct JackSpot
 };
 
 inline constexpr float kStackStep = 6.f;
-inline constexpr int kJackCount = 23;
+inline constexpr int kJackCount = 24;
 inline constexpr JackSpot kJacks[kJackCount] = {
     {"jack_top_in", false, patch::TopIn, 80.f, 220.f, "TOP IN", 0},
     {"jack_top_vc", false, patch::TopVc, 80.f, 390.f, "TOP VC", 0},
@@ -51,6 +51,7 @@ inline constexpr JackSpot kJacks[kJackCount] = {
     {"jack_slope2_out", true, patch::Slope2Out, 1510.f, 625.f, "SLOPE 2 OUT", 4},
     {"jack_slope2_ac", true, patch::Slope2Ac, 1510.f, 725.f, "SLOPE 2 AC", 4},
     {"jack_slope2_end", true, patch::Slope2End, 1510.f, 825.f, "SLOPE 2 END", 1},
+    {"jack_osc_out", true, patch::OscOut, 440.f, 66.f, "TEST OSC OUT", 0},
 };
 
 struct CableEnd

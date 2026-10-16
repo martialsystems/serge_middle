@@ -17,6 +17,9 @@ namespace
 {
 constexpr int kRateTag = 101;
 constexpr int kRate2Tag = 102;
+constexpr double kStarterFold = 2.0;
+constexpr double kStarterRise = 1.5;
+constexpr double kStarterFall = 2.5;
 
 void ShowTime(double value, WDL_String& display)
 {
@@ -54,15 +57,17 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   for (auto& meter : mMeterMax)
     meter.store(0.f, std::memory_order_relaxed);
 
-  GetParam(kFold)->InitDouble("Fold", serge::kGDefault, serge::kGMin, serge::kGMax, 0.001, "",
+  // Defaults are the starter patch (see README): a sine folded at 2, swept by
+  // Slope 1 cycling 1.5 s up and 2.5 s down through the PLEAT VC normal.
+  GetParam(kFold)->InitDouble("Fold", kStarterFold, serge::kGMin, serge::kGMax, 0.001, "",
                               0, "", IParam::ShapeExp());
   GetParam(kIn2)->InitDouble("IN 2 DC", serge::kSymDefault, serge::kSymMin, serge::kSymMax, 0.01, "V");
   GetParam(kVcDepth)->InitDouble("VC Depth", 0.5, 0.0, 1.0, 0.001);
-  GetParam(kRise)->InitDouble("Rise", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
-  GetParam(kFall)->InitDouble("Fall", 0.005, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kRise)->InitDouble("Rise", kStarterRise, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
+  GetParam(kFall)->InitDouble("Fall", kStarterFall, 0.0001, 10.0, 0.0001, "s", 0, "", IParam::ShapeExp());
   GetParam(kRise)->SetDisplayFunc(ShowTime);
   GetParam(kFall)->SetDisplayFunc(ShowTime);
-  GetParam(kCycle)->InitBool("Cycle", false);
+  GetParam(kCycle)->InitBool("Cycle", true);
   // Appended so a project saved before these controls keeps the six above.
   // Depth 0 leaves a slope VC cord at 0 V. Route 1 is BOTH, the circuit default.
   GetParam(kSlopeVc)->InitDouble("Slope VC", 0.0, -1.0, 1.0, 0.001);
@@ -83,6 +88,13 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
   GetParam(kSlopeVc2)->InitDouble("Slope VC 2", 0.0, -1.0, 1.0, 0.001);
   GetParam(kRoute2)->InitInt("Route 2", 1, 0, 2);
   GetParam(kRoute2)->SetDisplayFunc(ShowRoute);
+  // Test oscillator, appended after Route 2.
+  GetParam(kOscWave)->InitEnum("Osc Wave", 0, {"SINE", "SAW", "SQUARE"});
+  GetParam(kOscFreq)->InitDouble("Osc Freq", 110.0, 20.0, 2000.0, 0.01, "Hz", 0, "", IParam::ShapeExp());
+  GetParam(kOscLevel)->InitDouble("Osc Level", -12.0, -60.0, 0.0, 0.1, "dB");
+  GetParam(kOscToIn1)->InitBool("Osc to IN 1", true);
+
+  ApplyRouting(StarterRouting());
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -103,6 +115,14 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
     patchview::AttachFace(pGraphics, *this);
   };
 #endif
+}
+
+patch::Routing SergeMiddleCombined::StarterRouting()
+{
+  patch::Routing routing;
+  routing.Connect(patch::OscOut, patch::PleatIn1);
+  routing.Connect(patch::SlopeOut, patch::PleatVc);
+  return routing;
 }
 
 SergeMiddleCombined::~SergeMiddleCombined()
@@ -260,6 +280,10 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
   const double in2Target = GetParam(kIn2)->Value();
   const double depth = GetParam(kVcDepth)->Value();
   const patch::Routing routing = RoutingSnapshot();
+  const int oscWave = GetParam(kOscWave)->Int();
+  const double oscFreq = GetParam(kOscFreq)->Value();
+  const double oscVolts = patch::OscVoltsFromDb(GetParam(kOscLevel)->Value());
+  const bool oscToIn1 = GetParam(kOscToIn1)->Bool();
   const int nChans = std::min(NOutChansConnected(), kMaxChannels);
 
   patch::BlockMeter meter;
@@ -295,6 +319,10 @@ void SergeMiddleCombined::ProcessBlock(sample** inputs, sample** outputs, int nF
     extra.arm2 = cycle2 && mArm2;
     extra.slope2Depth = GetParam(kSlopeVc2)->Value();
     extra.slope2Route = GetParam(kRoute2)->Int();
+    extra.oscWave = oscWave;
+    extra.oscFreq = oscFreq;
+    extra.oscVolts = oscVolts;
+    extra.oscToIn1 = oscToIn1;
     for (int c = 0; c < nChans; ++c)
     {
       const double host = static_cast<double>(inputs[c][s]);
