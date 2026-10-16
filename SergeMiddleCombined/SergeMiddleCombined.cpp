@@ -373,7 +373,7 @@ int SergeMiddleCombined::UnserializeState(const IByteChunk& chunk, int startPos)
   ApplyRouting(routing);
   if (GetUI() != nullptr)
   {
-    if (IControl* cables = GetUI()->GetControlWithTag(kCableTag))
+    if (IControl* cables = GetUI()->GetControlWithTag(patchview::kCableTag))
       cables->SetDirty(false);
     if (IControl* rate = GetUI()->GetControlWithTag(kRateTag))
       rate->SetDirty(false);

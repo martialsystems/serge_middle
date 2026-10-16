@@ -26,6 +26,9 @@
 
 namespace patchview
 {
+
+// Tag for the cable layer, so the plug can redraw it after loading a patch.
+constexpr int kCableTag = 103;
 namespace gfx = iplug::igraphics;
 
 struct FaceState
@@ -601,9 +604,10 @@ private:
     mPlug->JackMeter(patch::MeterOf(true, mSpot.meterOutput), lo, hi);
     if (mSpot.end)
       return hi >= 2.5f;
-    if (GetDelegate() == nullptr || mSpot.cycleParam < 0)
+    iplug::IEditorDelegate* delegate = const_cast<SlopeLamp*>(this)->GetDelegate();
+    if (delegate == nullptr || mSpot.cycleParam < 0)
       return false;
-    if (!GetDelegate()->GetParam(mSpot.cycleParam)->Bool())
+    if (!delegate->GetParam(mSpot.cycleParam)->Bool())
       return false;
     return hi >= 2.5f;
   }
@@ -1212,7 +1216,7 @@ inline void AttachFace(gfx::IGraphics* g, SergeMiddleCombined& plug)
     const KnobSpot& knob = kKnobs[i];
     g->AttachControl(new FilmKnob(Spot(bounds, knob.x, knob.y, kKnobD, kKnobD), knob.param, film, i, face));
   }
-  g->AttachControl(new CableControl(bounds, plug, face));
+  g->AttachControl(new CableControl(bounds, plug, face), kCableTag);
   for (int i = 0; i < kKnobCount; ++i)
   {
     const KnobSpot& knob = kKnobs[i];
