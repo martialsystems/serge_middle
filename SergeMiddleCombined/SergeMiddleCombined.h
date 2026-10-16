@@ -56,6 +56,7 @@ public:
 
 #if IPLUG_EDITOR
   void OnParamChangeUI(int paramIdx, EParamSource source) override;
+  void OnParentWindowResize(int width, int height) override;
 #endif
 
 private:
@@ -80,5 +81,9 @@ private:
   bool mArm = false;
   bool mCycle2 = false;
   bool mArm2 = false;
+#endif
+
+#if IPLUG_EDITOR
+  bool mFittingResize = false;
 #endif
 };

@@ -26,12 +26,18 @@
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 1
 #define PLUG_HAS_UI 1
-// 2080 by 624 is middle_plate.png (five 416-wide panels). @2x is 4160 by 1248.
-#define PLUG_WIDTH 2080
-#define PLUG_HEIGHT 624
+// 1600 by 960 is middle_plate.png, one paperface grid. @2x is 3200 by 1920.
+// Default fits a 1920 by 1080 screen. The minimum window is 1200 by 720,
+// which fits a 1280 by 800 screen. Scale mode keeps the aspect.
+#define PLUG_WIDTH 1600
+#define PLUG_HEIGHT 960
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
-#define PLUG_HOST_RESIZE 0
+#define PLUG_HOST_RESIZE 1
+#define PLUG_MIN_WIDTH 1200
+#define PLUG_MIN_HEIGHT 720
+#define PLUG_MAX_WIDTH 2400
+#define PLUG_MAX_HEIGHT 1440
 
 #define AUV2_ENTRY SergeMiddleCombined_Entry
 #define AUV2_ENTRY_STR "SergeMiddleCombined_Entry"
