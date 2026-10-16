@@ -73,9 +73,15 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
     pGraphics->AttachTextEntryControl();
 
     const IRECT bounds = pGraphics->GetBounds();
-    const float mid = bounds.L + 0.5f * bounds.W();
-    const IRECT pleat(bounds.L, bounds.T, mid, bounds.B);
-    const IRECT slope(mid, bounds.T, bounds.R, bounds.B);
+    const float panelW = bounds.W() / static_cast<float>(patchview::kPanelCount);
+    const auto panelAt = [&](int index) {
+      const float x0 = bounds.L + static_cast<float>(index) * panelW;
+      return IRECT(x0, bounds.T, x0 + panelW, bounds.B);
+    };
+    // Panel 0 top, 1 PLEAT, 2 bottom, 3 slope 1, 4 slope 2.
+    // Top, bottom, and slope 2 are drawn on the plate and have no controls yet.
+    const IRECT pleat = panelAt(patchview::kPleatPanel);
+    const IRECT slope = panelAt(patchview::kSlopePanel);
     const IBitmap plate = pGraphics->LoadBitmap("middle_plate.png");
     const IBitmap knob = pGraphics->LoadBitmap("pleat_knob.png");
     const IBitmap cycle = pGraphics->LoadBitmap("slope_switch.png", 2);
@@ -87,7 +93,7 @@ SergeMiddleCombined::SergeMiddleCombined(const InstanceInfo& info)
         0, false, false, kNoParameter, true));
     pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kFoldX), kFold, knob));
     pGraphics->AttachControl(new pleat::PleatKnob(pleat::KnobBounds(pleat, pleat::kSymX), kIn2, knob));
-    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(bounds), kVcDepth, knob));
+    pGraphics->AttachControl(new patchview::DepthKnob(patchview::DepthBounds(pleat), kVcDepth, knob));
 
     const IText valueText(14.f, IColor(235, 238, 240, 245), "Roboto-Regular", EAlign::Center);
     pGraphics->AttachControl(new ICaptionControl(pleat::CaptionBounds(pleat, pleat::kFoldX), kFold, valueText,

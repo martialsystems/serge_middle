@@ -284,8 +284,10 @@ VC_X, VC_Y, VC_D = 0.50 * W, 0.529 * H, 40.0
 ROUTE_X, ROUTE_Y = 0.481 * W, 0.615 * H
 
 
-def slope_body(o, combined=False):
+def slope_body(o, combined=False, mark="", normal_out=True, caps=False):
     panel_base(o)
+    if mark:
+        o.append(f'<path fill="{WHITE}" d="{text_path("SLOPE " + mark, W/2, 28, 13, BOLD, 2.4)}"/>')
     # The panel mark: one rise, one fall, one peak, on a baseline.
     base, peak = 86, 34
     xs = (118, 152, 196, 264, 298)
@@ -362,12 +364,27 @@ def slope_body(o, combined=False):
 
     # The DUSG section, on both plates: inputs IN, TRIG, VC, then outputs END, OUT, AC.
     # IN black, TRIG red, VC blue, END red (logic 0 V or +5 V), OUT black, AC black.
-    jacks(o, ["IN", "TRIG", "VC", "END", "OUT", "AC"], ["black", "red", "blue", "red", "black", "black"], SLOPE6_X, "S" if combined else "A")
+    jacks(o, ["IN", "TRIG", "VC", "END", "OUT", "AC"], ["black", "red", "blue", "red", "black", "black"], SLOPE6_X, "S" + mark if combined else "A")
+    if caps:
+        # Same defaults as the live slope: 5 ms rise and fall, VC at noon, Cycle off, route BOTH.
+        # These caps are plate art. The editor does not turn them.
+        rise = knob_angle(time_norm(0.005))
+        append_knob(o, KNOB_LX, KNOB_Y, 120, rise, "sr" + mark)
+        append_knob(o, KNOB_RX, KNOB_Y, 120, rise, "sf" + mark)
+        append_knob(o, VC_X, VC_Y, 40, knob_angle(0.5), "sv" + mark)
+        append_lever(o, SWITCH_X, SWITCH_Y, "left", "sl" + mark)
+        append_lever(o, ROUTE_X, ROUTE_Y, "up", "su" + mark)
+        for cx in (KNOB_LX, KNOB_RX):
+            o.append(f'<path fill="#eef1f6" d="{text_path("5.00 ms", cx, (CAP_T+CAP_B)/2 + 4, 13, REG, 0.2)}"/>')
+        o.append(f'<path fill="#eef1f6" d="{text_path("OFF", RATE_X, (RATE_T+RATE_B)/2 + 4, 13, REG, 0.4)}"/>')
     if not combined:
         return
     xm = (SLOPE6_X[2] + SLOPE6_X[3]) / 2
     o.append(f'<line x1="{f(xm)}" y1="440" x2="{f(xm)}" y2="532" stroke="{WHITE}" stroke-opacity="0.35" stroke-width="0.8" stroke-dasharray="2 3"/>')
-    normals(o, [(SLOPE6_X[1], "\u2190 MIDI"), (SLOPE6_X[4], "\u2192 PLEAT VC")])
+    legends = [(SLOPE6_X[1], "\u2190 MIDI")]
+    if normal_out:
+        legends.append((SLOPE6_X[4], "\u2192 PLEAT VC"))
+    normals(o, legends)
 
 
 def switch_frame_svg(on: bool):
@@ -451,24 +468,216 @@ def switch_svg():
 
 
 
+def knob_angle(norm):
+    # Same travel as the editor knobs: -130 deg at minimum, +130 deg at maximum.
+    return -130.0 + 260.0 * norm
+
+
+def append_knob(o, cx, cy, diameter, angle, gid):
+    """Knurled cap, pointer at 12 o'clock before `angle`. Matches pleat_knob.svg."""
+    s = diameter / 240.0
+    c = 120.0
+    o.append(
+        f'<g transform="translate({f(cx)},{f(cy)}) rotate({f(angle)}) scale({f(s)}) translate(-120,-120)">'
+    )
+    o.append(
+        f'<defs>'
+        f'<radialGradient id="{gid}skirt" cx="0.36" cy="0.3" r="0.8">'
+        f'<stop offset="0" stop-color="#34373e"/><stop offset="0.55" stop-color="#141519"/><stop offset="1" stop-color="#060607"/>'
+        f'</radialGradient>'
+        f'<radialGradient id="{gid}cap" cx="0.38" cy="0.3" r="0.85">'
+        f'<stop offset="0" stop-color="#3a3d45"/><stop offset="0.6" stop-color="#16171b"/><stop offset="1" stop-color="#0a0a0c"/>'
+        f'</radialGradient>'
+        f'</defs>'
+    )
+    teeth, r0, r1 = 60, 113, 106.5
+    pts = []
+    for i in range(teeth * 2):
+        th = 2 * math.pi * i / (teeth * 2)
+        r = r0 if i % 2 == 0 else r1
+        pts.append(f"{f(c + r * math.sin(th))},{f(c - r * math.cos(th))}")
+    o.append(f'<polygon points="{" ".join(pts)}" fill="#08080a" stroke="#2c2f35" stroke-width="0.9" stroke-linejoin="round"/>')
+    o.append(f'<circle cx="{c}" cy="{c}" r="106" fill="url(#{gid}skirt)"/>')
+    o.append(f'<circle cx="{c}" cy="{c}" r="84" fill="#000" fill-opacity="0.55"/>')
+    o.append(f'<circle cx="{c}" cy="{c}" r="81" fill="url(#{gid}cap)" stroke="#4a4e57" stroke-opacity="0.7" stroke-width="1.4"/>')
+    o.append(f'<rect x="{c - 3.6}" y="9" width="7.2" height="{c - 9 - 34}" rx="3.6" fill="#f6f7f9"/>')
+    o.append("</g>")
+
+
+def append_lever(o, cx, cy, direction, gid):
+    """Bat lever at plate scale. direction is left, right, or up. Matches the switch bitmaps."""
+    if direction == "left":
+        tipx, tipy = cx - 17.0, cy
+    elif direction == "right":
+        tipx, tipy = cx + 17.0, cy
+    else:
+        tipx, tipy = cx, cy - 17.0
+    dx, dy = tipx - cx, tipy - cy
+    length = math.hypot(dx, dy) or 1.0
+    px, py = -dy / length, dx / length
+    o.append(
+        f'<defs>'
+        f'<radialGradient id="{gid}nut" cx="0.4" cy="0.35" r="0.7">'
+        f'<stop offset="0" stop-color="#f1f3f6"/><stop offset="0.7" stop-color="#9da2aa"/><stop offset="1" stop-color="#555a63"/>'
+        f'</radialGradient>'
+        f'<linearGradient id="{gid}bat" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0" stop-color="#f7f8fa"/><stop offset="0.5" stop-color="#b8bdc5"/><stop offset="1" stop-color="#6c717a"/>'
+        f'</linearGradient>'
+        f'</defs>'
+    )
+    hexpts = " ".join(
+        f"{f(cx + 7.5 * math.cos(math.radians(60 * i)))},{f(cy + 7.5 * math.sin(math.radians(60 * i)))}"
+        for i in range(6)
+    )
+    o.append(f'<polygon points="{hexpts}" fill="url(#{gid}nut)" stroke="#2a2d33" stroke-width="0.8"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="4" fill="#3b3f46" stroke="#14161a" stroke-width="0.6"/>')
+    nut = [(cx + px * 3.0, cy + py * 3.0), (cx - px * 3.0, cy - py * 3.0)]
+    tip = [(tipx + px * 2.25, tipy + py * 2.25), (tipx - px * 2.25, tipy - py * 2.25)]
+    shadow = (
+        f"M{f(nut[0][0])},{f(nut[0][1] + 1.5)} L{f(tip[0][0])},{f(tip[0][1] + 1.5)} "
+        f"L{f(tip[1][0])},{f(tip[1][1] + 1.5)} L{f(nut[1][0])},{f(nut[1][1] + 1.5)} Z"
+    )
+    bat = (
+        f"M{f(nut[0][0])},{f(nut[0][1])} L{f(tip[0][0])},{f(tip[0][1])} "
+        f"L{f(tip[1][0])},{f(tip[1][1])} L{f(nut[1][0])},{f(nut[1][1])} Z"
+    )
+    o.append(f'<path d="{shadow}" fill="#000" fill-opacity="0.35"/>')
+    o.append(f'<path d="{bat}" fill="url(#{gid}bat)" stroke="#3a3e45" stroke-width="0.6"/>')
+    o.append(f'<circle cx="{f(tipx)}" cy="{f(tipy)}" r="3.25" fill="url(#{gid}bat)" stroke="#3a3e45" stroke-width="0.6"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="2.5" fill="url(#{gid}nut)" stroke="#2a2d33" stroke-width="0.5"/>')
+
+
+def one_readout(o, cx):
+    o.append(
+        f'<rect x="{f(cx - 44)}" y="{f(CAP_T + 2)}" width="88" height="{f(CAP_B - CAP_T - 4)}" '
+        f'rx="3" fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>'
+    )
+
+
+def switch_well(o, cx, cy, legend, left, right):
+    o.append(f'<path fill="{WHITE}" d="{text_path(legend, cx, cy - 32, 12, BOLD, 1.6)}"/>')
+    o.append(
+        f'<rect x="{f(cx - 27)}" y="{f(cy - 15)}" width="54" height="30" rx="5" '
+        f'fill="url(#readout)" stroke="{WHITE}" stroke-opacity="0.45" stroke-width="0.8"/>'
+    )
+    o.append(f'<path fill="#dfe3ea" d="{text_path(left, cx - 34, cy + 3.4, 9.5, BOLD, 0.8, "end")}"/>')
+    o.append(f'<path fill="#dfe3ea" d="{text_path(right, cx + 34, cy + 3.4, 9.5, BOLD, 0.8, "start")}"/>')
+
+
+TOP_KNOB_X = 0.50 * W
+TOP_KNOB_Y = 0.36 * H
+TOP_SW_Y = 0.62 * H
+TOP_JACK_X = [0.22 * W, 0.50 * W, 0.78 * W]
+BOT_KNOB_X = 0.50 * W
+BOT_KNOB_Y = 0.36 * H
+
+
+def arc_scale(o, cx, cy, label, marks, minor):
+    o.append(f'<path fill="{WHITE}" d="{text_path(label, cx, cy - KNOB_Y + 134, 13, BOLD, 2.2)}"/>')
+    r_in, r_out, r_maj = 66, 72, 76
+    for i in range(minor + 1):
+        th = math.radians(-130 + 260 * i / minor)
+        s, c = math.sin(th), math.cos(th)
+        o.append(
+            f'<line x1="{f(cx + r_in * s)}" y1="{f(cy - r_in * c)}" x2="{f(cx + r_out * s)}" y2="{f(cy - r_out * c)}" '
+            f'stroke="{WHITE}" stroke-width="1" stroke-linecap="round"/>'
+        )
+    for n, txt in marks:
+        th = math.radians(-130 + 260 * n)
+        s, c = math.sin(th), math.cos(th)
+        o.append(
+            f'<line x1="{f(cx + r_in * s)}" y1="{f(cy - r_in * c)}" x2="{f(cx + r_maj * s)}" y2="{f(cy - r_maj * c)}" '
+            f'stroke="{WHITE}" stroke-width="1.6" stroke-linecap="round"/>'
+        )
+        tx, ty = cx + 87 * s, cy - 87 * c + 3.3
+        o.append(f'<path fill="#dfe3ea" d="{text_path(txt, tx, ty, 9.5, REG, 0.3)}"/>')
+
+
+# ---------------------------------------------------------------- VCM top and bottom
+#
+# NOTES.md names the top as a VCA or soft square-up with a HI/LO switch, and
+# the 2022 Random*Source top adds an AC/DC couple switch. The original module
+# has one knob on this section. It does not add the factory VC attenuator
+# (that mod is the middle and the bottom). Jacks are the audio in, the VC in,
+# and one out. The bottom is the level-compensated full-wave rectifier: one
+# knob, the factory VC attenuator, and two outs (the second squared up).
+# Coupling colours follow the Serge black/blue convention. The caps are drawn
+# here and are not editor controls yet.
+
+
+def top_body(o):
+    panel_base(o)
+    o.append(f'<path fill="{WHITE}" d="{text_path("TOP", W / 2, 68, 38, BOLD, 9)}"/>')
+    o.append(f'<path fill="#c7cdd8" d="{text_path("WAVE MULTIPLIERS", W / 2, 90, 10.5, BOLD, 2.2)}"/>')
+    o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
+    arc_scale(o, TOP_KNOB_X, TOP_KNOB_Y, "GAIN", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
+    one_readout(o, TOP_KNOB_X)
+    o.append(f'<path fill="#eef1f6" d="{text_path("0", TOP_KNOB_X, (CAP_T + CAP_B) / 2 + 4, 14, REG, 0.3)}"/>')
+    switch_well(o, 0.30 * W, TOP_SW_Y, "MODE", "LO", "HI")
+    switch_well(o, 0.70 * W, TOP_SW_Y, "COUPLE", "AC", "DC")
+    append_knob(o, TOP_KNOB_X, TOP_KNOB_Y, 120, knob_angle(0.0), "tg")
+    append_lever(o, 0.30 * W, TOP_SW_Y, "left", "th")
+    append_lever(o, 0.70 * W, TOP_SW_Y, "left", "tc")
+    jacks(o, ["IN", "VC", "OUT"], ["black", "blue", "black"], TOP_JACK_X, "T")
+
+
+def bottom_body(o):
+    panel_base(o)
+    o.append(f'<path fill="{WHITE}" d="{text_path("BOTTOM", W / 2, 68, 34, BOLD, 6)}"/>')
+    o.append(f'<path fill="#c7cdd8" d="{text_path("WAVE MULTIPLIERS", W / 2, 90, 10.5, BOLD, 2.2)}"/>')
+    o.append(f'<line x1="24" y1="106" x2="{W - 24}" y2="106" stroke="{WHITE}" stroke-width="1.2"/>')
+    arc_scale(o, BOT_KNOB_X, BOT_KNOB_Y, "LEVEL", [(0, "0"), (0.5, "0.5"), (1, "1")], 10)
+    one_readout(o, BOT_KNOB_X)
+    o.append(f'<path fill="#eef1f6" d="{text_path("0", BOT_KNOB_X, (CAP_T + CAP_B) / 2 + 4, 14, REG, 0.3)}"/>')
+    # Factory-mod VC attenuator, above the VC jack. Noon is the drawn standby.
+    cx, cy, r = JACK_X[1], 396.0, 22.0
+    o.append(f'<path fill="{WHITE}" d="{text_path("VC", cx + 40, 388, 11, BOLD, 1.4, "start")}"/>')
+    o.append(f'<path fill="#c7cdd8" d="{text_path("ATTEN", cx + 40, 402, 8, BOLD, 1.0, "start")}"/>')
+    for i in range(11):
+        th = math.radians(-130 + 26 * i)
+        s, c = math.sin(th), math.cos(th)
+        r_out = r + (7 if i in (0, 10) else 4.5)
+        o.append(
+            f'<line x1="{f(cx + (r + 1.5) * s)}" y1="{f(cy - (r + 1.5) * c)}" x2="{f(cx + r_out * s)}" y2="{f(cy - r_out * c)}" '
+            f'stroke="{WHITE}" stroke-width="{1.4 if i in (0, 10) else 0.9}" stroke-linecap="round"/>'
+        )
+    o.append(f'<path fill="#aab2c0" d="{text_path("0", cx - 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
+    o.append(f'<path fill="#aab2c0" d="{text_path("1", cx + 25, cy + 27, 7.5, REG, 0, "middle")}"/>')
+    append_knob(o, BOT_KNOB_X, BOT_KNOB_Y, 120, knob_angle(0.0), "bg")
+    append_knob(o, cx, cy, 44, knob_angle(0.5), "ba")
+    jacks(o, ["IN", "VC", "OUT 1", "OUT 2"], ["black", "blue", "black", "black"], prefix="B")
+
+
 # ---------------------------------------------------------------- combined
 
 def middle_plate_svg():
+    # Five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2.
+    # Top, bottom, and slope 2 caps are drawn on the plate and are not editor controls yet.
+    panels = 5
     o = []
-    o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{2*W}" height="{H}" viewBox="0 0 {2*W} {H}">')
-    o.append('<!-- Serge Middle combined plate: PLEAT (x 0..416) and the slope (x 416..832). Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
-    o.append('<!-- Layout matches SergeMiddleCombined/PatchView.h. PLEAT: knobs (0.30, 0.38) and (0.70, 0.38) of the panel, VC DEPTH centre (253.76, 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope: knobs (0.30, 0.38) and (0.70, 0.38), VC attenuverter (0.50 W, 0.529 H) diameter 40, route switch (0.481 W, 0.615 H), cycle switch (0.30 W, 0.655 H), jacks y 0.785 H at x 0.12/0.27/0.42/0.58/0.73/0.88 W. Text is outlined (Liberation Sans). -->')
+    o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{panels * W}" height="{H}" viewBox="0 0 {panels * W} {H}">')
+    o.append('<!-- Serge Middle combined plate. Copyright (c) 2026 Martial Systems LLC. All rights reserved. -->')
+    o.append('<!-- Panels of 416: TOP x 0, PLEAT x 416, BOTTOM x 832, SLOPE 1 x 1248, SLOPE 2 x 1664. PLEAT and SLOPE 1 match PatchView.h (panel index 1 and 3). Top: GAIN knob (0.50 W, 0.36 H), MODE and COUPLE switches at y 0.62 H, x 0.30 W and 0.70 W, jacks y 0.785 H at x 0.22/0.50/0.78 W. Bottom: LEVEL knob (0.50 W, 0.36 H), VC ATTEN centre (JACK_X[1], 396) diameter 44, jacks y 0.785 H at x 0.18/0.39/0.61/0.82 W. Slope 2 repeats slope 1. Text is outlined (Liberation Sans). -->')
     o.append('<g>')
-    pleat_body(o, combined=True)
+    top_body(o)
     o.append('</g>')
     o.append(f'<g transform="translate({W},0)">')
-    slope_body(o, combined=True)
+    pleat_body(o, combined=True)
     o.append('</g>')
-    # The slope OUT to PLEAT VC normal, drawn across both panels under the jack boxes.
-    x0, x1, y = W + SLOPE6_X[4], JACK_X[2], 562
+    o.append(f'<g transform="translate({2 * W},0)">')
+    bottom_body(o)
+    o.append('</g>')
+    o.append(f'<g transform="translate({3 * W},0)">')
+    slope_body(o, combined=True, mark="1", normal_out=True, caps=False)
+    o.append('</g>')
+    o.append(f'<g transform="translate({4 * W},0)">')
+    slope_body(o, combined=True, mark="2", normal_out=False, caps=True)
+    o.append('</g>')
+    # Slope 1 OUT to PLEAT VC. Slope 2 has no normal.
+    x0, x1, y = 3 * W + SLOPE6_X[4], W + JACK_X[2], 562
     o.append(f'<path d="M{f(x0)},542 L{f(x0)},{y} L{f(x1)},{y} L{f(x1)},549" fill="none" stroke="#9fb0c8" stroke-width="1.1" stroke-dasharray="4 3"/>')
-    o.append(f'<path d="M{f(x1-4)},550 L{f(x1)},543 L{f(x1+4)},550 Z" fill="#9fb0c8"/>')
-    o.append(f'<path fill="#9fb0c8" d="{text_path("NORMAL: SLOPE OUT TO PLEAT VC", (x0+x1)/2, y+13, 7.5, BOLD, 1.0)}"/>')
+    o.append(f'<path d="M{f(x1 - 4)},550 L{f(x1)},543 L{f(x1 + 4)},550 Z" fill="#9fb0c8"/>')
+    o.append(f'<path fill="#9fb0c8" d="{text_path("NORMAL: SLOPE 1 OUT TO PLEAT VC", (x0 + x1) / 2, y + 16, 7.5, BOLD, 1.0)}"/>')
     o.append('</svg>')
     return "\n".join(o) + "\n"
 
@@ -501,7 +710,7 @@ def main() -> int:
         (slope / "slope_plate.svg", slope_plate_svg(), (W, H), "RGB"),
         (slope / "slope_switch.svg", switch_svg(), (48, 56), "RGBA"),
         (slope / "slope_route.svg", route_svg(), (48, 84), "RGBA"),
-        (combo / "middle_plate.svg", middle_plate_svg(), (2 * W, H), "RGB"),
+        (combo / "middle_plate.svg", middle_plate_svg(), (5 * W, H), "RGB"),
     ]
     for path, text, (w, h), mode in jobs:
         path.write_text(text, encoding="utf-8")

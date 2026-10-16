@@ -39,7 +39,7 @@ class CombinedEditorTest(unittest.TestCase):
         config = (PLUGIN / "config.h").read_text(encoding="utf-8")
         self.assertIn('#define PLUG_NAME "Serge Middle"', config)
         self.assertIn('#define BUNDLE_NAME "SergeMiddleCombined"', config)
-        self.assertIn("#define PLUG_WIDTH 832", config)
+        self.assertIn("#define PLUG_WIDTH 2080", config)
         self.assertIn("#define PLUG_HEIGHT 624", config)
         self.assertIn("#define PLUG_DOES_MIDI_IN 1", config)
         self.assertIn("#define PLUG_DOES_STATE_CHUNKS 1", config)

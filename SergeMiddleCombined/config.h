@@ -26,8 +26,8 @@
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 1
 #define PLUG_HAS_UI 1
-// 832 by 624 is middle_plate.png. middle_plate@2x.png is 1664 by 1248.
-#define PLUG_WIDTH 832
+// 2080 by 624 is middle_plate.png (five 416-wide panels). @2x is 4160 by 1248.
+#define PLUG_WIDTH 2080
 #define PLUG_HEIGHT 624
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0

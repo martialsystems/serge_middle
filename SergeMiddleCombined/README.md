@@ -1,8 +1,8 @@
 # Serge Middle
 
-`SergeMiddleCombined` is PLEAT and the slope generator in one VST3. The left half is the PLEAT panel. The right half is the slope panel. Cables between the jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
+`SergeMiddleCombined` is the Wave Multipliers module and two slope sections in one VST3. The plate is five panels, left to right: VCM top, PLEAT, VCM bottom, slope 1, slope 2. Cables between the live jacks are part of the audio path. `SergeMiddle/` and `SlopeAC/` stay the single-panel plugins.
 
-Window: 832 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the knobs, the Cycle switch, the value captions, the rate readout, the cables, and the hover labels.
+Window: 2080 by 624. Format: VST3, via Unix Makefiles. The plate art holds the lettering. The code draws the live knobs, the Cycle switch, the value captions, the rate readout, the cables, and the hover labels. Top, bottom, and slope 2 are drawn on the plate, including their knobs and switches, and those controls are not in the audio path yet.
 
 ## Parameters
 
@@ -115,6 +115,6 @@ Slope IN other than 0 V takes the input path and does not also inject the TRIG e
 
 ## Gaps
 
-There is no 1V/OCT jack. The VCM top and bottom sections are not in this plugin. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay.
+There is no 1V/OCT jack. The VCM top and bottom sections, and the second slope, are drawn on the plate and are not in the audio path yet. One input takes one cable: several cables are not stacked on one input. Host audio reaches slope IN only by a cable, with no host sidechain. The editor was not host-tested by the agent. The standalone slope has the same attenuverter and route switch, and its VC jack voltage is 0 V because that plugin has no patch bay.
 
 Copyright (c) 2026 Martial Systems LLC. All rights reserved.
