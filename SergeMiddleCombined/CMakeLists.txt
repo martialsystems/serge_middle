@@ -9,24 +9,21 @@ endif()
 include(${IPLUG2_DIR}/iPlug2.cmake)
 find_package(iPlug2 REQUIRED)
 
-# VST3, via Unix Makefiles. The plate is drawn for this window.
-# Knobs, the switch, and Roboto are the PLEAT and Slope AC art.
+# VST3, via Unix Makefiles. The plate is the hand-drawn SLEWFOLD face.
+# Knobs are the filmstrip. Roboto is the readout face.
 iplug_add_plugin(${PROJECT_NAME}
   SOURCES
     SergeMiddleCombined.cpp
     SergeMiddleCombined.h
     PatchView.h
+    CableRope.h
     dsp/Patch.h
     AppMenuBootstrap.mm
   RESOURCES
-    resources/middle_plate.png
-    resources/middle_plate@2x.png
+    resources/slewfold_plate.png
+    resources/slewfold_plate@2x.png
+    resources/knob_filmstrip.png
+    resources/knob_filmstrip@2x.png
     ../SergeMiddle/resources/fonts/Roboto-Regular.ttf
-    ../SergeMiddle/resources/pleat_knob.png
-    ../SergeMiddle/resources/pleat_knob@2x.png
-    ../SlopeAC/resources/slope_switch.png
-    ../SlopeAC/resources/slope_switch@2x.png
-    ../SlopeAC/resources/slope_route.png
-    ../SlopeAC/resources/slope_route@2x.png
   FORMATS VST3 APP
 )

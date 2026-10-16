@@ -7,13 +7,15 @@
 	<key>CFBundleExecutable</key>
 	<string>SergeMiddleCombined</string>
 	<key>CFBundleGetInfoString</key>
-	<string>Serge Middle v1.0.0 Copyright 2026 Martial Systems LLC</string>
+	<string>SLEWFOLD v1.0.0 Copyright 2026 Martial Systems LLC</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.MartialSystems.vst3.SergeMiddleCombined</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>SLEWFOLD</string>
 	<key>CFBundleName</key>
-	<string>Serge Middle</string>
+	<string>SLEWFOLD</string>
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>

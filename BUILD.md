@@ -107,9 +107,9 @@ cmake -S SlopeAC -B build/slope-ac-fl -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Rel
 cmake --build build/slope-ac-fl --target SlopeAC-vst3
 codesign --force --sign - build/slope-ac-fl/out/SlopeAC.vst3
 
-## Serge Middle combined
+## SLEWFOLD
 
-`SergeMiddleCombined/` is the grid VST3. The window is 1600 by 960 and scales from 1200 by 720, so the default fits a 1920 by 1080 screen and the minimum fits a 1280 by 800 screen. Top row: VCM top, PLEAT, VCM bottom. Bottom row: slope 1, slope 2. Patch jacks route inside the plugin. Format: VST3, via Unix Makefiles. `SergeMiddle/` and `SlopeAC/` stay separate plugins.
+`SergeMiddleCombined/` is the SLEWFOLD VST3. The window is 1600 by 960 and scales from 1200 by 720, so the default fits a 1920 by 1080 screen and the minimum fits a 1280 by 800 screen. The face is the hand-drawn plate. Top row: VCM top, PLEAT, VCM bottom. Bottom row: slope 1, slope 2. Patch jacks route inside the plugin. Format: VST3, via Unix Makefiles. `SergeMiddle/` and `SlopeAC/` stay separate plugins. The display name is SLEWFOLD. `PLUG_MFR_ID` and `PLUG_UNIQUE_ID` are unchanged.
 
 Non-deploying build, from the repository root. `IPLUG_DEPLOY_PLUGINS=OFF` keeps that build out of the user VST3 folder:
 

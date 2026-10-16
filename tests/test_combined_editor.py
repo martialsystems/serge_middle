@@ -37,7 +37,7 @@ PARAMS = (
 class CombinedEditorTest(unittest.TestCase):
     def test_config(self) -> None:
         config = (PLUGIN / "config.h").read_text(encoding="utf-8")
-        self.assertIn('#define PLUG_NAME "Serge Middle"', config)
+        self.assertIn('#define PLUG_NAME "SLEWFOLD"', config)
         self.assertIn('#define BUNDLE_NAME "SergeMiddleCombined"', config)
         self.assertIn("#define PLUG_WIDTH 1600", config)
         self.assertIn("#define PLUG_HEIGHT 960", config)
@@ -59,7 +59,7 @@ class CombinedEditorTest(unittest.TestCase):
 
     def test_hit_box_and_params(self) -> None:
         view = (PLUGIN / "PatchView.h").read_text(encoding="utf-8")
-        match = re.search(r"kJackHit\s*=\s*([0-9]+(?:\.[0-9]+)?)f", view)
+        match = re.search(r"kJackHit\s*=\s*([0-9]+(?:\.[0-9]*)?)f", view)
         self.assertIsNotNone(match)
         self.assertGreaterEqual(float(match.group(1)), 28.0)
         header = (PLUGIN / "SergeMiddleCombined.h").read_text(encoding="utf-8")
@@ -119,22 +119,27 @@ class CombinedEditorTest(unittest.TestCase):
         self.assertIn('InitDouble("Top Gain", 0.0', source)
         self.assertIn('InitDouble("Bottom Level", 0.0', source)
         view = (PLUGIN / "PatchView.h").read_text(encoding="utf-8")
-        self.assertIn("CableColor(input)", view)
+        self.assertIn("kStackStep = 6.f", view)
+        self.assertIn("DrawLiftCable", view)
+        self.assertIn("knob_filmstrip.png", view)
+        self.assertNotIn("CableColor(input)", view)
         self.assertNotIn("What it is not", readme)
+        self.assertIn("panel/CableRope.h", readme)
+        self.assertIn("panel/LiftPanelPaint.cpp", readme)
         cmake = (PLUGIN / "CMakeLists.txt").read_text(encoding="utf-8")
         for name in (
-            "resources/middle_plate.png",
-            "resources/middle_plate@2x.png",
-            "../SergeMiddle/resources/pleat_knob.png",
-            "../SergeMiddle/resources/pleat_knob@2x.png",
-            "../SlopeAC/resources/slope_switch.png",
-            "../SlopeAC/resources/slope_switch@2x.png",
-            "../SlopeAC/resources/slope_route.png",
-            "../SlopeAC/resources/slope_route@2x.png",
+            "resources/slewfold_plate.png",
+            "resources/slewfold_plate@2x.png",
+            "resources/knob_filmstrip.png",
+            "resources/knob_filmstrip@2x.png",
             "../SergeMiddle/resources/fonts/Roboto-Regular.ttf",
             "FORMATS VST3",
+            "CableRope.h",
         ):
             self.assertIn(name, cmake)
+        self.assertNotIn("middle_plate.png", cmake)
+        self.assertNotIn("pleat_knob.png", cmake)
+        self.assertNotIn("slope_switch.png", cmake)
         self.assertNotIn("FORMATS APP", cmake)
 
     def test_prose_has_no_decorative_dash(self) -> None:
@@ -145,8 +150,11 @@ class CombinedEditorTest(unittest.TestCase):
             PLUGIN / "SergeMiddleCombined.h",
             PLUGIN / "dsp" / "Patch.h",
             PLUGIN / "config.h",
+            PLUGIN / "CableRope.h",
             ROOT / "BUILD.md",
             ROOT / "README.md",
+            ROOT / "tools" / "art" / "slewfold_face.py",
+            ROOT / "tools" / "art" / "render_slewfold.py",
             Path(__file__),
         ]
         for path in paths:

@@ -1,6 +1,6 @@
 # Patch playground
 
-Headless check of the Serge Middle DSP. A small C++ program renders one named patch through the real cells, slope, and combined patch, and writes every jack voltage as CSV. `run.py` renders the library, draws a scope plot of each jack, and fails when a trace drifts or a Serge rule breaks.
+Headless check of the SLEWFOLD DSP, the Serge Middle patch. A small C++ program renders one named patch through the real cells, slope, and combined patch, and writes every jack voltage as CSV. `run.py` renders the library, draws a scope plot of each jack, and fails when a trace drifts or a Serge rule breaks.
 
 The DSP headers are included as they are. This tool does not change their behavior.
 

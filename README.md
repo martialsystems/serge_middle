@@ -167,7 +167,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `upsample_taps.csv` | 4× insert-and-filter taps, sum 4 |
 | `SergeMiddle/` | iPlug2 VST3: Fold and IN 2 DC knobs, the port of `wave_middle.py` |
 | `SlopeAC/` | iPlug2 VST3 of the second slope half: Rise, Fall, Cycle, coupled AC / 2.5 |
-| `SergeMiddleCombined/` | iPlug2 VST3 of the wave multipliers and two slopes on one paperface grid |
+| `SergeMiddleCombined/` | SLEWFOLD, the iPlug2 VST3 of the wave multipliers and two slopes |
 | `tests/test_symmetry.py` | IN 2 voltage on `audio_map`, default bit match, cross-language anchor |
 | `tests/test_slope_editor.py` | Slope AC window, Cycle in ProcessBlock, plate and switch art |
 | `tools/art/` | Panel art generator (SVG and PNG) |

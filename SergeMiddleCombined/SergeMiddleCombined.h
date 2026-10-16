@@ -37,10 +37,16 @@ enum EParams
 using namespace iplug;
 using namespace igraphics;
 
+namespace patchview
+{
+struct FaceState;
+}
+
 class SergeMiddleCombined final : public Plugin
 {
 public:
   SergeMiddleCombined(const InstanceInfo& info);
+  ~SergeMiddleCombined();
 
   patch::Routing RoutingSnapshot() const;
   void ApplyRouting(const patch::Routing& routing);
@@ -57,6 +63,9 @@ public:
 #if IPLUG_EDITOR
   void OnParamChangeUI(int paramIdx, EParamSource source) override;
   void OnParentWindowResize(int width, int height) override;
+  // Hover text shared by the knobs and the readout rects. Owned here so a
+  // second instance does not see the first instance's hover.
+  patchview::FaceState* EditorFace();
 #endif
 
 private:
@@ -85,5 +94,6 @@ private:
 
 #if IPLUG_EDITOR
   bool mFittingResize = false;
+  patchview::FaceState* mFace = nullptr;
 #endif
 };

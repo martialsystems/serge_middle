@@ -65,7 +65,7 @@ END
 
 IDD_DIALOG_MAIN DIALOG 0, 0, 300, 300
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Serge Middle"
+CAPTION "SLEWFOLD"
 MENU IDR_MENU1
 FONT 8, "MS Sans Serif"
 BEGIN
@@ -207,9 +207,9 @@ BEGIN
         BEGIN
             VALUE "FileVersion", "0.0.1"
             VALUE "ProductVersion", "0.0.1"
-            VALUE "FileDescription", "Serge Middle"
-            VALUE "InternalName", "Serge Middle"
-            VALUE "ProductName", "Serge Middle"
+            VALUE "FileDescription", "SLEWFOLD"
+            VALUE "InternalName", "SLEWFOLD"
+            VALUE "ProductName", "SLEWFOLD"
             VALUE "CompanyName", "Martial Systems LLC"
             VALUE "LegalCopyright", "Copyright 2026 Martial Systems LLC"
             VALUE "LegalTrademarks", "VST is a trademark of Steinberg Media Technologies GmbH, Audio Unit is a trademark of Apple, Inc."
