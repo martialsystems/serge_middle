@@ -6,11 +6,72 @@ Copyright (c) 2026 Martial Systems LLC. All rights reserved.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _prebuilt(env_name: str, stem: str) -> Path | None:
+    override = os.environ.get(env_name)
+    if override:
+        path = Path(override)
+        if path.is_file():
+            return path
+    suffix = ".exe" if os.name == "nt" else ""
+    name = stem + suffix
+    roots = [ROOT / "build"]
+    build = ROOT / "build"
+    if build.is_dir():
+        roots.extend(sorted(p for p in build.iterdir() if p.is_dir()))
+    for folder in roots:
+        for candidate in (
+            folder / name,
+            folder / "Release" / name,
+            folder / "Debug" / name,
+        ):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def _cxx_command(source: Path, binary: Path) -> list[str]:
+    cxx = os.environ.get("CXX")
+    if cxx:
+        return [cxx, "-std=c++17", "-O2", "-o", str(binary), str(source)]
+    if shutil.which("g++"):
+        return ["g++", "-std=c++17", "-O2", "-o", str(binary), str(source)]
+    if shutil.which("c++"):
+        return ["c++", "-std=c++17", "-O2", "-o", str(binary), str(source)]
+    if shutil.which("clang++"):
+        return ["clang++", "-std=c++17", "-O2", "-o", str(binary), str(source)]
+    raise FileNotFoundError("no C++ compiler on PATH (g++, c++, clang++, or $CXX)")
+
+
+def _run_binary(env_name: str, stem: str, source: Path, expected: str) -> str:
+    prebuilt = _prebuilt(env_name, stem)
+    if prebuilt is not None:
+        binary = prebuilt
+    else:
+        binary = ROOT / "build" / stem
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        compiled = subprocess.run(
+            _cxx_command(source, binary),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if compiled.returncode != 0:
+            raise AssertionError(compiled.stderr)
+    ran = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
+    if ran.returncode != 0:
+        raise AssertionError(ran.stderr or ran.stdout)
+    if expected not in ran.stdout:
+        raise AssertionError(ran.stdout)
+    return ran.stdout
 
 
 class CableEndsTest(unittest.TestCase):
@@ -32,32 +93,26 @@ class CableEndsTest(unittest.TestCase):
             self.assertIn(f'"{name}"', face)
 
     def test_default_draws_no_cables(self) -> None:
-        binary = ROOT / "build" / "cable_ends_test"
-        binary.parent.mkdir(parents=True, exist_ok=True)
-        compiled = subprocess.run(
-            ["g++", "-std=c++17", "-O2", "-o", str(binary), str(ROOT / "tests" / "cable_ends_main.cpp")],
-            check=False,
-            capture_output=True,
-            text=True,
+        self.assertIn(
+            "cable ends ok",
+            _run_binary(
+                "SLEWFOLD_CABLE_ENDS_BIN",
+                "test_cable_ends",
+                ROOT / "tests" / "cable_ends_main.cpp",
+                "cable ends ok",
+            ),
         )
-        self.assertEqual(compiled.returncode, 0, compiled.stderr)
-        ran = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
-        self.assertEqual(ran.returncode, 0, ran.stderr)
-        self.assertIn("cable ends ok", ran.stdout)
 
     def test_rope_follows_a_moved_pin(self) -> None:
-        binary = ROOT / "build" / "cable_rope_test"
-        binary.parent.mkdir(parents=True, exist_ok=True)
-        compiled = subprocess.run(
-            ["g++", "-std=c++17", "-O2", "-o", str(binary), str(ROOT / "tests" / "cable_rope_main.cpp")],
-            check=False,
-            capture_output=True,
-            text=True,
+        self.assertIn(
+            "cable rope ok",
+            _run_binary(
+                "SLEWFOLD_CABLE_ROPE_BIN",
+                "test_cable_rope",
+                ROOT / "tests" / "cable_rope_main.cpp",
+                "cable rope ok",
+            ),
         )
-        self.assertEqual(compiled.returncode, 0, compiled.stderr)
-        ran = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
-        self.assertEqual(ran.returncode, 0, ran.stderr)
-        self.assertIn("cable rope ok", ran.stdout)
 
 
 if __name__ == "__main__":

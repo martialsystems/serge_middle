@@ -144,7 +144,18 @@ For vin > 0.05 V the map crosses zero six times, at 0.7272, 1.5548, 2.4310, 3.33
 
 ## How to run
 
-From the repository root:
+From the repository root, the labeled CTest suite is the daily loop (see `docs/FAST_TESTS.md`):
+
+```text
+cmake --preset linux-dev
+cmake --build --preset linux-dev
+ctest --test-dir build/linux-dev -L fast --output-on-failure
+# render tier (oscilloscope playground, must exit 0):
+ctest --test-dir build/linux-dev -L render --output-on-failure
+tools/test_watch.sh --once
+```
+
+The older entry points still work:
 
 ```text
 python3 -m unittest discover -s tests -t .
@@ -175,6 +186,7 @@ python3 -c "import wave_middle; wave_middle.write_acceptance()"
 | `BUILD.md` | Copied constants, build command, project name, window size |
 | `MATH.md` | Derivation of the locked map |
 | `GOLDEN.md` | Index of the locked numbers |
+| `docs/FAST_TESTS.md` | Labeled CTest tiers, compiler cache, watch scripts, lean CI |
 | `tests/test_transfer.py` | Curve, level law, and DC block |
 | `tests/test_signal.py` | Smoother and decimator |
 | `tests/__init__.py` | Makes `tests` importable |

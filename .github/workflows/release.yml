@@ -1,0 +1,116 @@
+# Copyright (c) 2026 Martial Systems LLC. All rights reserved.
+#
+# Push a tag like v0.1.0 to build the SLEWFOLD instrument plugin on macOS and
+# Windows and attach zips to a DRAFT release. Builds are unsigned (ad-hoc
+# codesign on macOS). CI on pull requests is Ubuntu-only (ci.yml).
+#
+# IPLUG_DEPLOY_PLUGINS=OFF keeps the build out of the runner's user VST3
+# folder and out of any real Application Support / settings directory.
+#
+# TODO(SLEWFOLD FX): when the effect target exists, add its cmake -S directory
+# and package zip next to the instrument (one extra matrix entry or extra
+# --target / zip step). Keep PLUG_MFR_ID 'Mrsy' and do not reuse 'SmCb'.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macOS
+          - os: windows-latest
+            platform: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Init iPlug2 submodule
+        shell: bash
+        run: git submodule update --init iPlug2
+
+      - name: Download VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          bash ./download-vst3-sdk.sh
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          cmake -S SergeMiddleCombined -B build/plugin -G "Unix Makefiles"
+          -DCMAKE_BUILD_TYPE=Release
+          -DIPLUG2_UNIVERSAL=ON
+          -DIPLUG_DEPLOY_PLUGINS=OFF
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: cmake --build build/plugin --config Release --parallel 4 --target SergeMiddleCombined-vst3
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: >
+          cmake -S SergeMiddleCombined -B build/plugin -G "Visual Studio 17 2022" -A x64
+          -DIPLUG_DEPLOY_PLUGINS=OFF
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cmake --build build/plugin --config Release --parallel 4 --target SergeMiddleCombined-vst3
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          bundle=$(find build/plugin -name 'SergeMiddleCombined.vst3' -type d | head -n 1)
+          if [ -z "$bundle" ]; then
+            echo "VST3 bundle was not built." >&2
+            exit 1
+          fi
+          codesign --force --deep --sign - "$bundle" || true
+          mkdir -p dist
+          cp -R "$bundle" dist/
+          (cd dist && zip -ry ../SLEWFOLD-macOS.zip .)
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          bundle=$(find build/plugin -name 'SergeMiddleCombined.vst3' | head -n 1)
+          if [ -z "$bundle" ]; then
+            echo "VST3 bundle was not built." >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp -R "$bundle" dist/
+          (cd dist && 7z a ../SLEWFOLD-Windows.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: SLEWFOLD-*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "SLEWFOLD $GITHUB_REF_NAME"

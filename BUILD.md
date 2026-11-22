@@ -22,7 +22,16 @@ The PLEAT VST3 is `SergeMiddle/`. The second slope half is `SlopeAC/`. This tree
 
 ## Tests
 
-From the repository root:
+The labeled CTest harness is documented in `docs/FAST_TESTS.md`. From the repository root:
+
+```text
+cmake --preset linux-dev
+cmake --build --preset linux-dev
+ctest --test-dir build/linux-dev -L fast --output-on-failure
+ctest --test-dir build/linux-dev -L render --output-on-failure
+```
+
+The older stdlib suite still works:
 
 ```text
 python3 -m unittest discover -s tests -t .
