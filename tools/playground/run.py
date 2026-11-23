@@ -54,9 +54,12 @@ def build_cli(build_dir: Path) -> Path:
         subprocess.check_call(cmd)
     # Incremental. A DSP header change rebuilds even when playground.cpp did not.
     subprocess.check_call(["cmake", "--build", str(build_dir), "-j"])
-    if exe.exists():
-        return exe
-    for candidate in (build_dir / "Release" / "playground", build_dir / "Release" / "playground.exe"):
+    for candidate in (
+        exe,
+        build_dir / "playground.exe",
+        build_dir / "Release" / "playground",
+        build_dir / "Release" / "playground.exe",
+    ):
         if candidate.exists():
             return candidate
     raise SystemExit(f"playground binary not found in {build_dir}")

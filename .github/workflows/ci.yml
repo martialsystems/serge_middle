@@ -1,0 +1,139 @@
+# Copyright (c) 2026 Martial Systems LLC. All rights reserved.
+#
+# Lean Linux CI: builds the headless test harness (no iPlug2, no VST3 SDK, no
+# plugin) and runs the fast + render tiers. macOS and Windows plugin builds
+# live in release.yml and run only for v* tags.
+# This workflow replaces .github/workflows/playground.yml (removed): the
+# oscilloscope playground is the render tier, Ubuntu only, on pull requests.
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - "SergeMiddle/**"
+      - "SergeMiddleCombined/**"
+      - "SlopeAC/**"
+      - "slope/**"
+      - "tests/**"
+      - "tools/**"
+      - "cmake/**"
+      - "wave_middle.py"
+      - "halfband_taps.csv"
+      - "upsample_taps.csv"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - ".gitattributes"
+      - "README.md"
+      - "BUILD.md"
+      - "GOLDEN.md"
+      - "MATH.md"
+      - "IPLUG2.md"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "SergeMiddle/**"
+      - "SergeMiddleCombined/**"
+      - "SlopeAC/**"
+      - "slope/**"
+      - "tests/**"
+      - "tools/**"
+      - "cmake/**"
+      - "wave_middle.py"
+      - "halfband_taps.csv"
+      - "upsample_taps.csv"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - ".gitattributes"
+      - "README.md"
+      - "BUILD.md"
+      - "GOLDEN.md"
+      - "MATH.md"
+      - "IPLUG2.md"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+    inputs:
+      run_slow:
+        description: "Also run the slow tier (RESOURCE_LOCK slewfold_heavy). No slow tests ship today; reserved for later heavy checks."
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.event_name == 'workflow_dispatch' && 'manual-' || '' }}${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Headless tests (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.run_slow && 60 || 20 }}
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "1"
+      CCACHE_MAXSIZE: 500M
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build ccache
+
+      - name: Python packages
+        run: python -m pip install -r tools/playground/requirements.txt
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-ubuntu-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'cmake/**') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ubuntu-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'cmake/**') }}-
+            ccache-ubuntu-
+
+      - name: Configure
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --set-config=compiler_check=content
+          ccache -z
+          cmake --preset linux-ci
+
+      - name: Build
+        run: cmake --build --preset linux-ci --parallel 4
+
+      - name: Test (fast)
+        run: ctest --preset fast
+
+      - name: Test (render)
+        if: ${{ !cancelled() }}
+        run: ctest --preset render
+
+      - name: Test (slow, manual runs with run_slow only)
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.run_slow }}
+        run: |
+          if ctest --test-dir build/linux-ci -N -L slow | grep -q 'Total Tests: [1-9]'; then
+            ctest --preset slow
+          else
+            echo "No slow tests registered (the slewfold_heavy lock is reserved for later)."
+          fi
+
+      - name: ccache stats
+        if: always()
+        run: ccache -s
+
+      - name: Upload playground plots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playground-ubuntu
+          path: tools/playground/out/
+          if-no-files-found: ignore
+          retention-days: 7
