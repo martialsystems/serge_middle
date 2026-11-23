@@ -320,7 +320,7 @@ void TestCables()
   if (!delayMatch)
     std::printf("  delay miss at %d\n", delayMiss);
 
-  auto firstIn2 = [](double primed) {
+  auto firstIn2 = [&](double primed) {
     patch::PatchChannel channel;
     channel.Reset(kFs);
     patch::Routing routing;
@@ -583,7 +583,7 @@ void TestEndJack()
 
   // Depth 0 ignores a slope VC cord. END stays +5 V through this part of the rise,
   // so the cord is a constant +5 V and the exact-sample count does not drop out.
-  auto atSample = [](double depth, int route) {
+  auto atSample = [&](double depth, int route) {
     patch::PatchChannel channel;
     channel.Reset(kFs);
     channel.PrimeOutput(patch::SlopeEnd, patch::kGateVolts);
