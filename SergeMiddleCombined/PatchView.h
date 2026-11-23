@@ -668,15 +668,15 @@ public:
     mX = x;
     mY = y;
     const int jack = JackAt(x, y);
-    const bool near = NearRope(x, y) || jack >= 0;
-    if (jack != mHover || near || mNear)
+    const bool nearRope = NearRope(x, y) || jack >= 0;
+    if (jack != mHover || nearRope || mNear)
     {
       mHover = jack;
       mAwake = true;
       mIdle = 0;
       SetDirty(false);
     }
-    mNear = near;
+    mNear = nearRope;
   }
 
   void OnMouseOut() override
